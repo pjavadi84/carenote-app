@@ -27,10 +27,13 @@ type UserWithOrg = User & {
   organizations: Organization;
 };
 
+import { AlertTriangle } from "lucide-react";
+
 const navItems = [
-  { href: "/today", label: "Today", icon: CalendarDays },
-  { href: "/residents", label: "Residents", icon: Users },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/today", label: "Today", icon: CalendarDays, adminOnly: false },
+  { href: "/residents", label: "Residents", icon: Users, adminOnly: false },
+  { href: "/incidents", label: "Incidents", icon: AlertTriangle, adminOnly: true },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, adminOnly: true },
 ];
 
 export function AppShell({
@@ -119,8 +122,7 @@ export function AppShell({
       <nav className="fixed bottom-0 left-0 right-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="flex h-16 items-center justify-around">
           {navItems.map((item) => {
-            // Dashboard tab only visible to admins
-            if (item.href === "/dashboard" && !isAdmin) return null;
+            if (item.adminOnly && !isAdmin) return null;
 
             const isActive =
               pathname === item.href || pathname.startsWith(item.href + "/");
