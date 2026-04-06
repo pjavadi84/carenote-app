@@ -61,43 +61,55 @@ export function NoteTimeline({ notes }: { notes: NoteWithRelations[] }) {
   );
 }
 
-function StructuredNoteDisplay({ output }: { output: string }) {
+function parseStructuredOutput(output: string) {
   try {
-    const parsed = JSON.parse(output);
-    return (
-      <div className="space-y-2">
-        <p className="text-sm font-medium">{parsed.summary}</p>
-        {parsed.sections &&
-          Object.entries(parsed.sections).map(([section, text]) => (
-            <div key={section}>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                {section}
-              </p>
-              <p className="text-sm">{text as string}</p>
-            </div>
-          ))}
-        {parsed.follow_up && parsed.follow_up !== "None noted." && (
-          <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Follow-up
-            </p>
-            <p className="text-sm">{parsed.follow_up}</p>
-          </div>
-        )}
-        {parsed.flags && parsed.flags.length > 0 && (
-          <div className="flex flex-wrap gap-1 pt-1">
-            {parsed.flags.map(
-              (flag: { type: string; reason: string }, i: number) => (
-                <Badge key={i} variant="destructive" className="text-xs">
-                  {flag.type}: {flag.reason}
-                </Badge>
-              )
-            )}
-          </div>
-        )}
-      </div>
-    );
+    return JSON.parse(output) as {
+      summary?: string;
+      sections?: Record<string, string>;
+      follow_up?: string;
+      flags?: Array<{ type: string; reason: string }>;
+    };
   } catch {
+    return null;
+  }
+}
+
+function StructuredNoteDisplay({ output }: { output: string }) {
+  const parsed = parseStructuredOutput(output);
+
+  if (!parsed) {
     return <p className="text-sm whitespace-pre-wrap">{output}</p>;
   }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium">{parsed.summary}</p>
+      {parsed.sections &&
+        Object.entries(parsed.sections).map(([section, text]) => (
+          <div key={section}>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              {section}
+            </p>
+            <p className="text-sm">{text}</p>
+          </div>
+        ))}
+      {parsed.follow_up && parsed.follow_up !== "None noted." && (
+        <div>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Follow-up
+          </p>
+          <p className="text-sm">{parsed.follow_up}</p>
+        </div>
+      )}
+      {parsed.flags && parsed.flags.length > 0 && (
+        <div className="flex flex-wrap gap-1 pt-1">
+          {parsed.flags.map((flag, i) => (
+            <Badge key={i} variant="destructive" className="text-xs">
+              {flag.type}: {flag.reason}
+            </Badge>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
