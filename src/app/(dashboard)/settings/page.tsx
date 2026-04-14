@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     async function load() {
@@ -57,7 +57,7 @@ export default function SettingsPage() {
           email_reply_to: string | null;
         };
         setName(o.name);
-        setTimezone(o.timezone);
+        setTimezone(o.timezone || "America/Los_Angeles");
         setEmailFromName(o.email_from_name || "");
         setEmailReplyTo(o.email_reply_to || "");
       }
@@ -123,7 +123,7 @@ export default function SettingsPage() {
 
         <div className="space-y-2">
           <Label htmlFor="timezone">Timezone</Label>
-          <Select value={timezone} onValueChange={(v) => v && setTimezone(v)}>
+          <Select value={timezone} onValueChange={setTimezone}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>

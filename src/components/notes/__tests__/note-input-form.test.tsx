@@ -80,18 +80,18 @@ describe("NoteInputForm", () => {
       <NoteInputForm residentId="resident-1" organizationId="org-1" />
     );
 
-    // The shift selector stores the value in a hidden input
     const hour = new Date().getHours();
-    let expectedShift: string;
-    if (hour < 12) expectedShift = "morning";
-    else if (hour < 18) expectedShift = "afternoon";
-    else expectedShift = "night";
+    let expectedLabel: string;
+    if (hour < 12) expectedLabel = "Morning";
+    else if (hour < 18) expectedLabel = "Afternoon";
+    else expectedLabel = "Night";
 
-    // Check hidden input value set by the Select component
-    const hiddenInputs = document.querySelectorAll('input[type="hidden"], input[aria-hidden="true"]');
-    const shiftInput = Array.from(hiddenInputs).find(
-      (input) => (input as HTMLInputElement).value === expectedShift
-    );
-    expect(shiftInput).toBeTruthy();
+    // The shift label is rendered inside the Select trigger's SelectValue.
+    // There is one SelectValue for note type and one for shift — the shift
+    // value is the second one.
+    const selectValues = document.querySelectorAll('[data-slot="select-value"]');
+    const shiftValue = selectValues[1];
+    expect(shiftValue).toBeTruthy();
+    expect(shiftValue?.textContent).toBe(expectedLabel);
   });
 });

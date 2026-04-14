@@ -205,8 +205,10 @@ export function NoteInputForm({
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="flex gap-2">
             <Select value={noteType} onValueChange={(v) => v && setNoteType(v)}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Note type">
+                  {noteType === "shift_note" ? "Shift Note" : "Observation"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="shift_note">Shift Note</SelectItem>
@@ -215,8 +217,14 @@ export function NoteInputForm({
             </Select>
 
             <Select value={shift} onValueChange={(v) => v && setShift(v)}>
-              <SelectTrigger className="w-[130px]">
-                <SelectValue />
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Shift">
+                  {shift === "morning"
+                    ? "Morning"
+                    : shift === "afternoon"
+                    ? "Afternoon"
+                    : "Night"}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="morning">Morning</SelectItem>
