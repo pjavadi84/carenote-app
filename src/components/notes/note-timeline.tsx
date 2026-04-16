@@ -39,7 +39,7 @@ export function NoteTimeline({ notes }: { notes: NoteWithRelations[] }) {
                 )}
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground" suppressHydrationWarning>
               {note.users?.full_name} &middot;{" "}
               {formatDistanceToNow(new Date(note.created_at), {
                 addSuffix: true,

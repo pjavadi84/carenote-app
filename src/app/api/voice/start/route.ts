@@ -59,6 +59,12 @@ export async function POST(request: NextRequest) {
 
   const sessionId = (session as { id: string }).id;
 
+  const firstName = resident.first_name;
+  const conditions = resident.conditions;
+  const firstMessage = conditions
+    ? `Hi ${appUser.full_name}, this is CareNote. Let's do ${firstName}'s shift note. I see ${firstName} has ${conditions} on file. How were they today?`
+    : `Hi ${appUser.full_name}, this is CareNote. Let's do ${firstName}'s shift note. How were they today?`;
+
   const assistantOverrides = {
     ...buildAssistantOverrides({
       caregiverName: appUser.full_name,
@@ -67,6 +73,7 @@ export async function POST(request: NextRequest) {
       conditions: resident.conditions,
       careNotesContext: resident.care_notes_context,
     }),
+    firstMessage,
     metadata: { sessionId },
   };
 

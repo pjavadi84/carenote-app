@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Mic, PhoneOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-type CallState = "idle" | "starting" | "in-call" | "ending";
+type CallState = "idle" | "starting" | "in-call" | "ending" | "structuring";
 
 interface VapiClient {
   on: (event: string, handler: (...args: unknown[]) => void) => void;
@@ -14,16 +14,64 @@ interface VapiClient {
   stop: () => void;
 }
 
+const POLL_INTERVAL_MS = 3000;
+const MAX_POLL_ATTEMPTS = 10; // 30 seconds max
+
 export function VoiceCallButton({ residentId }: { residentId: string }) {
   const [state, setState] = useState<CallState>("idle");
   const vapiRef = useRef<VapiClient | null>(null);
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
   const router = useRouter();
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     return () => {
       vapiRef.current?.stop();
+      stopPolling();
     };
-  }, []);
+  }, [stopPolling]);
+
+  function startPollingForNote() {
+    let attempts = 0;
+    setState("structuring");
+
+    pollRef.current = setInterval(async () => {
+      attempts++;
+      router.refresh();
+
+      if (sessionIdRef.current) {
+        try {
+          const res = await fetch(`/api/voice/session/${sessionIdRef.current}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.noteStructured) {
+              stopPolling();
+              setState("idle");
+              toast.success("Note structured and saved");
+              router.refresh();
+              return;
+            }
+          }
+        } catch {
+          // Non-blocking — keep polling
+        }
+      }
+
+      if (attempts >= MAX_POLL_ATTEMPTS) {
+        stopPolling();
+        setState("idle");
+        toast.info("Note saved — structuring may still be in progress");
+        router.refresh();
+      }
+    }, POLL_INTERVAL_MS);
+  }
 
   async function handleStart() {
     setState("starting");
@@ -39,7 +87,8 @@ export function VoiceCallButton({ residentId }: { residentId: string }) {
         throw new Error(error || "Failed to start call");
       }
 
-      const { assistantId, publicKey, assistantOverrides } = await res.json();
+      const { sessionId, assistantId, publicKey, assistantOverrides } = await res.json();
+      sessionIdRef.current = sessionId;
 
       const { default: Vapi } = await import("@vapi-ai/web");
       const vapi = new Vapi(publicKey) as unknown as VapiClient;
@@ -47,16 +96,14 @@ export function VoiceCallButton({ residentId }: { residentId: string }) {
 
       vapi.on("call-start", () => setState("in-call"));
       vapi.on("call-end", () => {
-        setState("idle");
-        toast.success("Call ended — note is being structured");
-        router.refresh();
+        startPollingForNote();
       });
       vapi.on("error", (...args: unknown[]) => {
         const err = args[0];
         const msg = err instanceof Error ? err.message : String(err ?? "Call error");
-        // "Meeting has ended" is a normal Daily.co teardown event, not a real error
         if (msg.includes("Meeting has ended") || msg.includes("ejection")) return;
         toast.error(msg);
+        stopPolling();
         setState("idle");
       });
 
@@ -71,6 +118,15 @@ export function VoiceCallButton({ residentId }: { residentId: string }) {
   function handleEnd() {
     setState("ending");
     vapiRef.current?.stop();
+  }
+
+  if (state === "structuring") {
+    return (
+      <Button variant="outline" disabled>
+        <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+        Structuring note...
+      </Button>
+    );
   }
 
   if (state === "in-call" || state === "ending") {
