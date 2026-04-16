@@ -28,13 +28,16 @@ export async function GET(
   const typedSession = session as { id: string; status: string; note_id: string | null };
 
   let noteStructured = false;
+  let flaggedAsIncident = false;
   if (typedSession.note_id) {
     const { data: note } = await supabase
       .from("notes")
-      .select("is_structured")
+      .select("is_structured, flagged_as_incident")
       .eq("id", typedSession.note_id)
       .single();
-    noteStructured = (note as { is_structured: boolean } | null)?.is_structured ?? false;
+    const typedNote = note as { is_structured: boolean; flagged_as_incident: boolean } | null;
+    noteStructured = typedNote?.is_structured ?? false;
+    flaggedAsIncident = typedNote?.flagged_as_incident ?? false;
   }
 
   return NextResponse.json({
@@ -42,5 +45,6 @@ export async function GET(
     status: typedSession.status,
     noteId: typedSession.note_id,
     noteStructured,
+    flaggedAsIncident,
   });
 }
