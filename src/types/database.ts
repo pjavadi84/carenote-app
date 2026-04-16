@@ -814,3 +814,15 @@ export const Constants = {
   },
 } as const
 
+// Helper type aliases used across the app
+export type Organization = Database["public"]["Tables"]["organizations"]["Row"];
+export type User = Database["public"]["Tables"]["users"]["Row"];
+export type Resident = Database["public"]["Tables"]["residents"]["Row"];
+export type FamilyContact = Database["public"]["Tables"]["family_contacts"]["Row"];
+export type Note = Database["public"]["Tables"]["notes"]["Row"];
+export type IncidentReport = Database["public"]["Tables"]["incident_reports"]["Row"];
+export type FamilyCommunication = Database["public"]["Tables"]["family_communications"]["Row"];
+export type WeeklySummary = Database["public"]["Tables"]["weekly_summaries"]["Row"];
+export type VoiceSession = Database["public"]["Tables"]["voice_sessions"]["Row"];
+export type VoiceTranscript = Database["public"]["Tables"]["voice_transcripts"]["Row"];
+

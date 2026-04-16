@@ -40,7 +40,6 @@ export async function POST(request: NextRequest) {
 
   const { data: session, error: insertError } = await supabase
     .from("voice_sessions")
-    // @ts-expect-error — voice_sessions not in generated Database types until `supabase gen types` is re-run
     .insert({
       organization_id: appUser.organization_id,
       resident_id: resident.id,

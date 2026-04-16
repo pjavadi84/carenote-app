@@ -27,8 +27,7 @@ export async function POST(request: NextRequest) {
     if (status) {
       await supabase
         .from("voice_sessions")
-        // @ts-expect-error — voice_sessions not in generated Database types yet
-        .update({ status, ...(status === "in_progress" ? { started_at: new Date().toISOString() } : {}) })
+                .update({ status, ...(status === "in_progress" ? { started_at: new Date().toISOString() } : {}) })
         .eq("vapi_call_id", event.call.id);
     }
     return NextResponse.json({ received: true });
@@ -58,8 +57,7 @@ export async function POST(request: NextRequest) {
 
     await supabase
       .from("voice_sessions")
-      // @ts-expect-error — voice_sessions not in generated Database types yet
-      .update({
+            .update({
         status: "completed",
         ended_at: event.endedAt || new Date().toISOString(),
         duration_seconds: event.durationSeconds ?? null,
@@ -77,8 +75,7 @@ export async function POST(request: NextRequest) {
           offset_ms: m.secondsFromStart ? Math.round(m.secondsFromStart * 1000) : null,
         }));
       if (turns.length) {
-        // @ts-expect-error — voice_transcripts not in generated Database types yet
-        await supabase.from("voice_transcripts").insert(turns);
+                await supabase.from("voice_transcripts").insert(turns);
       }
     }
 
@@ -137,8 +134,7 @@ export async function POST(request: NextRequest) {
 
     await supabase
       .from("voice_sessions")
-      // @ts-expect-error — voice_sessions not in generated Database types yet
-      .update({ note_id: note.id })
+            .update({ note_id: note.id })
       .eq("id", session.id);
 
     try {

@@ -11,11 +11,10 @@ import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 // reliable tap handling and the native iOS/Android picker.
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const MobileContext = React.createContext<{
   isMobile: boolean
-  value: any
-  onValueChange: any
+  value: string | undefined
+  onValueChange: ((value: string) => void) | undefined
   items: { value: string; label: string }[]
   registerItem: (value: string, label: string) => void
 }>({
