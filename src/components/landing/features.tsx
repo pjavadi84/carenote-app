@@ -1,0 +1,81 @@
+"use client"
+
+import { Mic, FileText, Share2, Lock, Zap, Brain } from "lucide-react"
+
+const features = [
+  {
+    icon: Mic,
+    title: "Voice Recording",
+    description: "Speak naturally about patient care. Our AI understands medical terminology and context."
+  },
+  {
+    icon: Brain,
+    title: "AI Processing",
+    description: "Advanced language models convert your voice notes into structured clinical documentation."
+  },
+  {
+    icon: FileText,
+    title: "Smart Documentation",
+    description: "Generate professional notes, care plans, and reports automatically from your recordings."
+  },
+  {
+    icon: Zap,
+    title: "Instant Transcription",
+    description: "Real-time speech-to-text with medical vocabulary recognition for accurate documentation."
+  },
+  {
+    icon: Share2,
+    title: "Easy Sharing",
+    description: "Share reports with families, healthcare teams, or export to EMR systems seamlessly."
+  },
+  {
+    icon: Lock,
+    title: "Secure & Private",
+    description: "Enterprise-grade encryption and HIPAA compliance to protect sensitive patient information."
+  }
+]
+
+export function Features() {
+  return (
+    <section id="features" className="py-12 md:py-20">
+      <div className="mx-auto max-w-6xl">
+        {/* Section Header */}
+        <div className="mb-12 text-center">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-border bg-secondary/50 px-4 py-2 text-sm text-muted-foreground">
+            <span>How it Works</span>
+          </div>
+          <h2 className="mb-4 text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+            Streamlined Clinical Documentation
+          </h2>
+          <p className="mx-auto max-w-2xl text-muted-foreground">
+            From voice to documentation in seconds. Our AI-powered platform handles the complexity 
+            so you can focus on what matters most—patient care.
+          </p>
+        </div>
+
+        {/* Features Grid */}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {features.map((feature, index) => {
+            const Icon = feature.icon
+            return (
+              <div
+                key={index}
+                className="group rounded-2xl border border-border bg-card p-6 transition-all hover:border-primary/50 hover:bg-secondary/30"
+              >
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-secondary text-foreground transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+                  <Icon className="h-6 w-6" />
+                </div>
+                <h3 className="mb-2 text-lg font-semibold text-foreground">
+                  {feature.title}
+                </h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  {feature.description}
+                </p>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </section>
+  )
+}
