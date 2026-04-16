@@ -8,6 +8,42 @@ import {
   type StructuredNoteOutput,
 } from "@/lib/prompts/shift-note";
 
+// Look up our voice_sessions row using either metadata.sessionId (preferred)
+// or vapi_call_id as fallback.
+async function findSession(
+  supabase: ReturnType<typeof createAdminClient>,
+  event: VapiWebhookEvent
+) {
+  const sessionId =
+    event.call.assistantOverrides?.metadata?.sessionId ??
+    event.call.metadata?.sessionId;
+  if (sessionId) {
+    const { data } = await supabase
+      .from("voice_sessions")
+      .select("id, organization_id, resident_id, caregiver_id")
+      .eq("id", sessionId)
+      .single();
+    return data as {
+      id: string;
+      organization_id: string;
+      resident_id: string;
+      caregiver_id: string;
+    } | null;
+  }
+  // Fallback: lookup by vapi_call_id
+  const { data } = await supabase
+    .from("voice_sessions")
+    .select("id, organization_id, resident_id, caregiver_id")
+    .eq("vapi_call_id", event.call.id)
+    .single();
+  return data as {
+    id: string;
+    organization_id: string;
+    resident_id: string;
+    caregiver_id: string;
+  } | null;
+}
+
 export async function POST(request: NextRequest) {
   if (!verifyVapiWebhook(request)) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
@@ -23,31 +59,25 @@ export async function POST(request: NextRequest) {
   const supabase = createAdminClient();
 
   if (event.type === "status-update") {
-    const status = event.status === "in-progress" ? "in_progress" : event.status === "ended" ? "completed" : null;
-    if (status) {
-      await supabase
-        .from("voice_sessions")
-                .update({ status, ...(status === "in_progress" ? { started_at: new Date().toISOString() } : {}) })
-        .eq("vapi_call_id", event.call.id);
+    const session = await findSession(supabase, event);
+    if (session) {
+      const status = event.status === "in-progress" ? "in_progress" : event.status === "ended" ? "completed" : null;
+      if (status) {
+        await supabase
+          .from("voice_sessions")
+          .update({
+            status,
+            vapi_call_id: event.call.id,
+            ...(status === "in_progress" ? { started_at: new Date().toISOString() } : {}),
+          })
+          .eq("id", session.id);
+      }
     }
     return NextResponse.json({ received: true });
   }
 
   if (event.type === "end-of-call-report") {
-    const callId = event.call.id;
-
-    const { data: sessionRow } = await supabase
-      .from("voice_sessions")
-      .select("id, organization_id, resident_id, caregiver_id")
-      .eq("vapi_call_id", callId)
-      .single();
-
-    const session = sessionRow as {
-      id: string;
-      organization_id: string;
-      resident_id: string;
-      caregiver_id: string;
-    } | null;
+    const session = await findSession(supabase, event);
 
     if (!session) {
       return NextResponse.json({ error: "Session not found for call" }, { status: 404 });
@@ -57,8 +87,9 @@ export async function POST(request: NextRequest) {
 
     await supabase
       .from("voice_sessions")
-            .update({
+      .update({
         status: "completed",
+        vapi_call_id: event.call.id,
         ended_at: event.endedAt || new Date().toISOString(),
         duration_seconds: event.durationSeconds ?? null,
         full_transcript: transcript,
@@ -75,7 +106,7 @@ export async function POST(request: NextRequest) {
           offset_ms: m.secondsFromStart ? Math.round(m.secondsFromStart * 1000) : null,
         }));
       if (turns.length) {
-                await supabase.from("voice_transcripts").insert(turns);
+        await supabase.from("voice_transcripts").insert(turns);
       }
     }
 
@@ -134,7 +165,7 @@ export async function POST(request: NextRequest) {
 
     await supabase
       .from("voice_sessions")
-            .update({ note_id: note.id })
+      .update({ note_id: note.id })
       .eq("id", session.id);
 
     try {

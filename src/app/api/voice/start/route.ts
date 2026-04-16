@@ -57,16 +57,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const assistantOverrides = buildAssistantOverrides({
-    caregiverName: appUser.full_name,
-    residentFirstName: resident.first_name,
-    residentLastName: resident.last_name,
-    conditions: resident.conditions,
-    careNotesContext: resident.care_notes_context,
-  });
+  const sessionId = (session as { id: string }).id;
+
+  const assistantOverrides = {
+    ...buildAssistantOverrides({
+      caregiverName: appUser.full_name,
+      residentFirstName: resident.first_name,
+      residentLastName: resident.last_name,
+      conditions: resident.conditions,
+      careNotesContext: resident.care_notes_context,
+    }),
+    metadata: { sessionId },
+  };
 
   return NextResponse.json({
-    sessionId: (session as { id: string }).id,
+    sessionId,
     assistantId: process.env.VAPI_ASSISTANT_ID,
     publicKey: process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY,
     assistantOverrides,

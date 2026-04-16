@@ -2,7 +2,11 @@ import type { NextRequest } from "next/server";
 
 export interface VapiEndOfCallReport {
   type: "end-of-call-report";
-  call: { id: string };
+  call: {
+    id: string;
+    metadata?: Record<string, string>;
+    assistantOverrides?: { metadata?: Record<string, string> };
+  };
   endedReason?: string;
   transcript?: string;
   messages?: Array<{
@@ -19,7 +23,11 @@ export interface VapiEndOfCallReport {
 
 export interface VapiStatusUpdate {
   type: "status-update";
-  call: { id: string };
+  call: {
+    id: string;
+    metadata?: Record<string, string>;
+    assistantOverrides?: { metadata?: Record<string, string> };
+  };
   status: "queued" | "ringing" | "in-progress" | "forwarding" | "ended";
 }
 

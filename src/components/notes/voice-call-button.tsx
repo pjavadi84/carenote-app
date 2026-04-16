@@ -53,7 +53,9 @@ export function VoiceCallButton({ residentId }: { residentId: string }) {
       });
       vapi.on("error", (...args: unknown[]) => {
         const err = args[0];
-        const msg = err instanceof Error ? err.message : "Call error";
+        const msg = err instanceof Error ? err.message : String(err ?? "Call error");
+        // "Meeting has ended" is a normal Daily.co teardown event, not a real error
+        if (msg.includes("Meeting has ended") || msg.includes("ejection")) return;
         toast.error(msg);
         setState("idle");
       });
