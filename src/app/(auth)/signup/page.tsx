@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Turnstile } from "@marsidev/react-turnstile";
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 import { Logo } from "@/components/logo";
 
 export default function SignupPage() {
@@ -37,10 +37,16 @@ export default function SignupPage() {
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const turnstileRef = useRef<TurnstileInstance | null>(null);
   const router = useRouter();
   const supabase = createClient();
 
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+
+  function resetCaptcha() {
+    setCaptchaToken(null);
+    turnstileRef.current?.reset();
+  }
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
@@ -69,12 +75,14 @@ export default function SignupPage() {
 
     if (authError) {
       toast.error(authError.message);
+      resetCaptcha();
       setLoading(false);
       return;
     }
 
     if (authData.user && !authData.user.identities?.length) {
       toast.error("An account with this email already exists");
+      resetCaptcha();
       setLoading(false);
       return;
     }
@@ -227,8 +235,11 @@ export default function SignupPage() {
 
             {turnstileSiteKey && (
               <Turnstile
+                ref={turnstileRef}
                 siteKey={turnstileSiteKey}
                 onSuccess={setCaptchaToken}
+                onExpire={() => setCaptchaToken(null)}
+                onError={() => setCaptchaToken(null)}
                 options={{ theme: "auto", size: "flexible" }}
               />
             )}

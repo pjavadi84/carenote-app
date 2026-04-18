@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -16,7 +16,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Turnstile } from "@marsidev/react-turnstile";
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 import { Logo } from "@/components/logo";
 
 function LoginForm() {
@@ -24,9 +24,15 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const turnstileRef = useRef<TurnstileInstance | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
+
+  function resetCaptcha() {
+    setCaptchaToken(null);
+    turnstileRef.current?.reset();
+  }
 
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
@@ -59,6 +65,7 @@ function LoginForm() {
 
     if (error) {
       toast.error(error.message);
+      resetCaptcha();
       setLoading(false);
       return;
     }
@@ -81,6 +88,8 @@ function LoginForm() {
         captchaToken: captchaToken ?? undefined,
       },
     });
+
+    resetCaptcha();
 
     if (error) {
       toast.error(error.message);
@@ -169,8 +178,11 @@ function LoginForm() {
 
             {turnstileSiteKey && (
               <Turnstile
+                ref={turnstileRef}
                 siteKey={turnstileSiteKey}
                 onSuccess={setCaptchaToken}
+                onExpire={() => setCaptchaToken(null)}
+                onError={() => setCaptchaToken(null)}
                 options={{ theme: "auto", size: "flexible" }}
               />
             )}
