@@ -36,7 +36,8 @@ export async function GET(request: NextRequest) {
     if (error) {
       return NextResponse.redirect(`${origin}/login?error=confirmation_failed`);
     }
-    return NextResponse.redirect(`${origin}/login?confirmed=true`);
+    // User is now verified and authenticated — go straight to dashboard
+    return NextResponse.redirect(`${origin}/today`);
   }
 
   // Handle OAuth callback (code flow)
