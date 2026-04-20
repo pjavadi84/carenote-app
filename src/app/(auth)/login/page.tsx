@@ -36,6 +36,9 @@ function LoginForm() {
 
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
+  const reason = searchParams.get("reason");
+  const timedOut = reason === "timeout";
+
   useEffect(() => {
     if (searchParams.get("confirmed") === "true") {
       toast.success("Email confirmed! You can now sign in.");
@@ -126,6 +129,18 @@ function LoginForm() {
           <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {timedOut && (
+            <div
+              role="status"
+              className="rounded-md border border-amber-500/40 bg-amber-50 dark:bg-amber-950/30 p-3 text-xs"
+            >
+              <p className="font-medium">Signed out due to inactivity</p>
+              <p className="text-muted-foreground mt-0.5">
+                For privacy, your session ended after 15 minutes idle. Sign
+                back in to continue.
+              </p>
+            </div>
+          )}
           <Button
             type="button"
             variant="outline"

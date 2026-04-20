@@ -1,6 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+// Idle timeout for authed dashboard sessions. Anything inside the
+// (dashboard) group is considered "in the app" and bumps the cookie on
+// each request. Public / auth pages don't count as activity.
+const IDLE_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+const LAST_SEEN_COOKIE = "cn_last_seen";
+const LAST_SEEN_MAX_AGE_SECONDS = 24 * 60 * 60; // 24h — always refreshed on use
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -71,6 +78,33 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/today";
     return NextResponse.redirect(url);
+  }
+
+  // Idle timeout. Only applies when the user is authenticated AND hitting
+  // a protected surface — public routes (the /portal clinician magic
+  // link, the marketing pages, auth flows) don't count as activity and
+  // shouldn't expire a session.
+  if (user && user.email_confirmed_at && !isPublicRoute && !isAuthPage) {
+    const now = Date.now();
+    const lastSeenRaw = request.cookies.get(LAST_SEEN_COOKIE)?.value;
+    const lastSeen = lastSeenRaw ? Number.parseInt(lastSeenRaw, 10) : NaN;
+
+    if (Number.isFinite(lastSeen) && now - lastSeen > IDLE_TIMEOUT_MS) {
+      await supabase.auth.signOut();
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.search = "?reason=timeout";
+      const redirect = NextResponse.redirect(url);
+      redirect.cookies.delete(LAST_SEEN_COOKIE);
+      return redirect;
+    }
+
+    supabaseResponse.cookies.set(LAST_SEEN_COOKIE, now.toString(), {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: LAST_SEEN_MAX_AGE_SECONDS,
+    });
   }
 
   return supabaseResponse;

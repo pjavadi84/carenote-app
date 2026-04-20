@@ -2,6 +2,33 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
+import { checkRate } from "@/lib/rate-limit";
+
+// 10 opens per minute per token handles legitimate refresh / reload; 60
+// per minute per IP blocks a bot brute-forcing random token strings.
+// Tokens are 256 bits so the brute force is mostly academic, but the
+// per-IP cap also prevents credential-stuffing against the endpoint.
+const TOKEN_LIMIT_MAX = 10;
+const TOKEN_LIMIT_WINDOW_MS = 60_000;
+const IP_LIMIT_MAX = 60;
+const IP_LIMIT_WINDOW_MS = 60_000;
+
+function clientIp(request: NextRequest): string {
+  const fwd = request.headers.get("x-forwarded-for");
+  if (fwd) {
+    const first = fwd.split(",")[0]?.trim();
+    if (first) return first;
+  }
+  return request.headers.get("x-real-ip")?.trim() ?? "unknown";
+}
+
+function rateLimitResponse(retryAfterMs: number): NextResponse {
+  const retryAfter = Math.ceil(retryAfterMs / 1000);
+  return NextResponse.json(
+    { error: "Too many requests. Please try again shortly." },
+    { status: 429, headers: { "Retry-After": retryAfter.toString() } }
+  );
+}
 
 // Unauthenticated endpoint. Uses the service-role client because clinicians
 // don't have accounts — the magic-link token IS the auth. Validates the
@@ -15,6 +42,23 @@ export async function GET(
   if (!token || token.length < 16) {
     return NextResponse.json({ error: "Invalid token" }, { status: 400 });
   }
+
+  // Rate limit by token and by IP before we do any DB work. A well-behaved
+  // clinician refreshing the page falls well under both caps; anything
+  // hammering either value is blocked cheaply.
+  const ip = clientIp(request);
+  const byToken = checkRate(
+    `portal:tok:${token}`,
+    TOKEN_LIMIT_MAX,
+    TOKEN_LIMIT_WINDOW_MS
+  );
+  if (!byToken.allowed) return rateLimitResponse(byToken.retryAfterMs);
+  const byIp = checkRate(
+    `portal:ip:${ip}`,
+    IP_LIMIT_MAX,
+    IP_LIMIT_WINDOW_MS
+  );
+  if (!byIp.allowed) return rateLimitResponse(byIp.retryAfterMs);
 
   const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
   const admin = createAdminClient();

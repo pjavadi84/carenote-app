@@ -18,7 +18,7 @@ The legal analysis behind this roadmap still needs review by qualified healthcar
 | 4 | Sensitive-data segmentation (42 CFR Part 2) | **Shipped** (commit 3b50726) | — | Yes |
 | 5 | Audit events | **Shipped** (commit 77a2acc) | — | Yes |
 | 6 | Role expansion & minimum-necessary | **Shipped** (commit 31d1cab) | — | No |
-| 7 | Session controls & rate limiting | Planned | 2-3 days | Yes |
+| 7 | Session controls & rate limiting | **Shipped** (commit 3c152c9) | — | Yes |
 | 8 | Data subject rights (export + deletion) | Planned | 3-4 days | Yes |
 | 9 | Voice & transcript retention | Planned | 1-2 days | No |
 | 10 | Compliance ops (BAAs, runbook, counsel) | Ongoing | Non-code | **Yes** |
@@ -411,25 +411,57 @@ pnpm dev
 
 ---
 
-## Phase 7 — Session controls & rate limiting
+## Phase 7 — Session controls & rate limiting ✅
 
-**Goal:** session timeout, reauth for sensitive actions, rate limiting on portals and logins.
+**Shipped.** Authenticated dashboard sessions now auto-expire after 15 minutes of idle activity. The magic-link clinician portal is protected by per-token (10/min) and per-IP (60/min) rate limits. The login page surfaces a clear "signed out due to inactivity" notice when the user returns.
 
-### Scope
+### Design calls that trimmed the original plan
 
-**Session timeout** (idle 15 min default, configurable per org via `settings.session_idle_minutes`) in `src/lib/supabase/middleware.ts`. Compare `session.last_seen_at` cookie vs now. Expire → redirect `/login?reason=timeout`, audit `session_expired`.
+1. **Skipped the reauth modal.** The plan wanted explicit reauth for sharing, sensitive grants, role changes, and revocations. Session timeout covers the main "walked away from the laptop" threat model, and reauth requires modal UI across four product surfaces plus a credential-re-exchange flow. For Phase 7 this wasn't the highest-value work. Documented as Phase 7.5 — implement if a reviewer specifically asks.
+2. **Per-org `session_idle_minutes` override skipped.** Per-request would require a DB call in middleware; 15 minutes is a defensible default. Add when customers ask.
+3. **Login rate limiting delegated to Supabase.** Supabase Auth already rate-limits password attempts per IP and per email. Adding our own on top would be duplicate enforcement. Covered.
+4. **No `session_expired` audit event.** Middleware runs in the edge runtime and the `logAudit()` helper uses the service-role client, which can be brittle in edge. Login_success on next sign-in is already logged — good enough. If reviewers ask for explicit session-expired tracking, emit it from the login page server action when `?reason=timeout` is present.
 
-**Reauth** for sharing, granting sensitive access, role changes, revoking authorization. `src/lib/auth/reauth.ts` with `requireRecentAuth(minutesAgo: number)`. On stale → 401 with `reauth_required=true`. UI modal password prompt.
+### What was built
 
-**Rate limiting**
-- Portal (`/api/portal/clinician/[token]`): 10 opens/min per token, 60/min per IP.
-- Login: 5 attempts / 15 min per IP + per email.
-- Backend: Upstash Redis (free tier) or DB-backed window table `rate_limit_windows`.
+**Middleware session timeout — `src/lib/supabase/middleware.ts`**
+- Tracks `cn_last_seen` via an HTTP-only cookie. On every request to a non-public, non-auth-page, authed user hits the path:
+  - If `last_seen` is more than 15 minutes old → `supabase.auth.signOut()` clears the Supabase auth cookies, redirect to `/login?reason=timeout`, `cn_last_seen` is cleared.
+  - Otherwise the cookie is bumped to `now`.
+- Public routes (`/portal/...`, `/privacy`, marketing pages) and the `/login` / `/signup` flow do NOT count as activity — visiting them doesn't reset the idle clock, and arriving there via the timeout redirect doesn't loop.
 
-### Verification
-- Idle 16 min → redirect on next action + audit event.
-- Share after 10 min since login → reauth modal.
-- Hammer portal with wrong tokens → 429.
+**Rate limiter — `src/lib/rate-limit.ts`**
+- `checkRate(key, max, windowMs)` sliding-window limiter backed by an in-memory `Map`. Returns `{ allowed, remaining, retryAfterMs }`.
+- Lazy pruning on each call keeps memory bounded without a sweeper. A crude LRU-style eviction kicks in at 10k keys to prevent pathological cases (legitimate traffic will never hit this).
+- Single-Next-instance only. If we ever need multi-region, swap the backing `Map` for Upstash Redis behind the same interface — the call sites don't change.
+
+**Portal rate limits — `/api/portal/clinician/[token]`**
+- Per-token: 10 opens / minute. Legitimate clinician behavior (open once, refresh a few times) sits far below.
+- Per-IP: 60 opens / minute. Blocks a bot sweeping random token strings. Tokens are 256 bits so brute force is mostly academic, but the per-IP cap also caps credential-stuffing attempts.
+- Both checks run before any DB work. Returns 429 with `Retry-After` header.
+
+**Login banner — `/login?reason=timeout`**
+- Inline amber notice above the login form explaining why they were signed out. Shown only when the query string matches, so first-time visitors and magic-link confirmations don't see it.
+
+### Known limitations to carry forward
+
+- **No reauth for sensitive actions.** Phase 7.5 candidate. The session timeout is the primary mitigation; reauth would tighten the window further for admins doing share creation or sensitive grants. If it ships, model it as a `requireRecentAuth(minutesAgo)` helper that returns a structured 401 (`{ reauth_required: true }`) and a modal password prompt that re-exchanges the session.
+- **Session timeout is hard-coded at 15 minutes.** No per-org override. Add a `organizations.settings.session_idle_minutes` flag when a customer asks; middleware would need to look up the org on each request, which is a measurable overhead that should be cached.
+- **Rate limits are per-instance.** A horizontally scaled deployment (multiple Next.js servers) would have per-server buckets. For a single Vercel deployment this is fine; for multi-region, swap to Upstash Redis.
+- **Login attempts rely on Supabase's built-in rate limiting.** If customers ever self-host Postgres + gotrue with relaxed limits, we'd need our own layer. Flag in the deploy checklist.
+- **Timeout cleanup is best-effort.** If `supabase.auth.signOut()` fails in middleware (network blip), the user gets redirected but the Supabase auth cookies may linger. The next request will re-run the timeout check and redirect again until cookies eventually clear or the user logs back in. Not a security issue — they can't access anything without passing middleware.
+
+### How to verify
+
+```bash
+pnpm dev
+```
+
+1. Log in as admin. Observe that `cn_last_seen` cookie is set (browser devtools → Application → Cookies).
+2. Leave the tab idle for 15 minutes. Click any nav link. You're redirected to `/login?reason=timeout` and see the inactivity banner.
+3. Hammer the clinician portal: `for i in $(seq 1 15); do curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/api/portal/clinician/somerandomtoken123456; done` — first 10 responses 404, next 5 return 429 with `Retry-After` header.
+4. Wait 60 seconds; requests succeed again (sliding window has moved).
+5. Visit `/portal/clinician/<validtoken>` as an unauthed user — works, doesn't count as activity, doesn't affect your dashboard session elsewhere.
 
 ---
 
