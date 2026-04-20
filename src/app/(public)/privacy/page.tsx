@@ -117,13 +117,26 @@ export default function PrivacyPolicyPage() {
             documentation assistance.
           </li>
           <li>
-            <span className="font-medium text-foreground">Deepgram:</span> Provides speech-to-text
-            transcription services for converting voice recordings into text.
+            <span className="font-medium text-foreground">OpenAI (Whisper):</span> Provides
+            speech-to-text transcription for voice notes recorded outside the conversational
+            Vapi flow. Audio is streamed directly to the transcription endpoint and is not
+            persisted by CareNote.
+          </li>
+          <li>
+            <span className="font-medium text-foreground">Resend:</span> Delivers transactional
+            email (family updates, clinician portal invitations). Email bodies include only the
+            content needed for that notification.
+          </li>
+          <li>
+            <span className="font-medium text-foreground">Supabase:</span> Hosts our database
+            and authentication infrastructure.
           </li>
         </ul>
         <p className="text-muted-foreground leading-relaxed">
           We require all third-party providers to maintain appropriate security standards and to process
-          data only in accordance with our instructions and applicable law.
+          data only in accordance with our instructions and applicable law. HIPAA Business Associate
+          Agreements with each sub-processor are finalized at the time of customer onboarding alongside
+          the BAA with CareNote.
         </p>
       </section>
 

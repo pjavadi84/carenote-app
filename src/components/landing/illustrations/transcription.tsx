@@ -37,7 +37,7 @@ export function TranscriptionIllustration() {
         <animate attributeName="r" values="6;7;6" dur="1s" repeatCount="indefinite" />
       </circle>
       <text x="132" y="216" fill="currentColor" opacity="0.4" fontSize="8" fontFamily="sans-serif">Listening...</text>
-      <text x="132" y="228" fill="currentColor" opacity="0.25" fontSize="7" fontFamily="sans-serif">Deepgram Nova-2 real-time</text>
+      <text x="132" y="228" fill="currentColor" opacity="0.25" fontSize="7" fontFamily="sans-serif">Streaming voice recognition</text>
     </svg>
   );
 }

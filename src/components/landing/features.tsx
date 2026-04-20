@@ -36,8 +36,8 @@ const features = [
   {
     id: "security",
     icon: Lock,
-    title: "Secure & Private",
-    description: "Enterprise-grade encryption and HIPAA compliance to protect sensitive patient information."
+    title: "Compliance-Ready",
+    description: "Append-only audit log, role-based access, revocable magic-link portals for clinician sharing, and 42 CFR Part 2 data segregation — the primitives your security review actually asks for."
   }
 ]
 

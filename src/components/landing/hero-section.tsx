@@ -1,6 +1,6 @@
 "use client"
 
-import { Sparkles, ArrowRight, Shield, Clock, Mic } from "lucide-react"
+import { Sparkles, ArrowRight, Shield, Clock, Mic, ScrollText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 interface HeroSectionProps {
@@ -51,15 +51,15 @@ export function HeroSection({ onStartConsult }: HeroSectionProps) {
         <div className="mt-12 flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground md:gap-10">
           <div className="flex items-center gap-2">
             <Shield className="h-4 w-4 text-primary" />
-            <span>HIPAA Compliant</span>
+            <span>HIPAA-ready architecture</span>
           </div>
           <div className="flex items-center gap-2">
             <Clock className="h-4 w-4 text-primary" />
             <span>Save 2+ Hours Daily</span>
           </div>
           <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <span>99.5% Accuracy</span>
+            <ScrollText className="h-4 w-4 text-primary" />
+            <span>Full audit trail</span>
           </div>
         </div>
       </div>

@@ -35,7 +35,7 @@ const featureDetails = [
       "Understands medical terminology and context",
       "Automatically detects incidents and anomalies",
       "Separates observations into structured categories",
-      "No hallucination — only documents what you actually said",
+      "Grounded in caregiver observations — never invents details not in the input",
     ],
     Illustration: AiProcessingIllustration,
   },
@@ -62,7 +62,7 @@ const featureDetails = [
     description:
       "Unlike dictation tools that just transcribe, CareNote has a real conversation with you. It asks follow-up questions, clarifies details, and ensures you've covered everything the next shift needs to know.",
     benefits: [
-      "Powered by Deepgram Nova-2 for 99%+ accuracy",
+      "Streaming voice recognition for real-time back-and-forth",
       "Sub-second response time for natural conversation",
       "Asks follow-up questions when details are missing",
       "Handles accents and medical terminology",
@@ -87,15 +87,15 @@ const featureDetails = [
   {
     id: "security",
     icon: Lock,
-    title: "Secure & Private",
+    title: "Compliance-Ready",
     headline: "Built for healthcare from day one.",
     description:
-      "Patient data deserves the highest protection. CareNote uses row-level security, encrypted storage, and organization-scoped access controls. Every query is authenticated, every table is protected, and every action is auditable.",
+      "Patient data deserves the highest protection. CareNote ships concrete compliance primitives — not generic encryption promises — so your security review has real code to inspect, not marketing copy. Every disclosure is logged, every sensitive note is segregated, every clinician share is revocable.",
     benefits: [
-      "Row-Level Security on every database table",
-      "Organization-scoped data isolation",
-      "Encrypted at rest and in transit",
-      "HIPAA-compliant infrastructure (Vapi + Supabase)",
+      "Row-Level Security on every PHI table",
+      "Append-only audit + disclosure ledgers",
+      "42 CFR Part 2 segregation with explicit-unlock workflow",
+      "Revocable magic-link clinician portals + resident data export",
     ],
     Illustration: SecurityIllustration,
   },
