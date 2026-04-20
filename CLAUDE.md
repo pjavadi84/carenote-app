@@ -36,3 +36,6 @@ Full product spec is in the sibling `carenote-docs/` repo. Key references:
 - Prompts: `09-PROMPT-ENGINEERING.md`
 - Compliance: `10-COMPLIANCE-AND-SECURITY.md`
 - Build Plan: `11-BUILD-PLAN.md`
+
+## Implementation Roadmap
+- **HIPAA compliance roadmap:** `docs/HIPAA-ROADMAP.md` — 10-phase plan to make the app ready for real PHI. Phase 1 (clinician directory + secure sharing) is shipped. Read this before starting any phase, and before changing migrations, RLS, prompts, or sharing flows.
