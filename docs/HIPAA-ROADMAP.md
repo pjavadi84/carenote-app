@@ -19,7 +19,7 @@ The legal analysis behind this roadmap still needs review by qualified healthcar
 | 5 | Audit events | **Shipped** (commit 77a2acc) | — | Yes |
 | 6 | Role expansion & minimum-necessary | **Shipped** (commit 31d1cab) | — | No |
 | 7 | Session controls & rate limiting | **Shipped** (commit 3c152c9) | — | Yes |
-| 8 | Data subject rights (export + deletion) | **Shipped** (commit TBD) | — | Yes |
+| 8 | Data subject rights (export + deletion) | **Shipped** (commit eb0664d) | — | Yes |
 | 9 | Voice & transcript retention | Planned | 1-2 days | No |
 | 10 | Compliance ops (BAAs, runbook, counsel) | Ongoing | Non-code | **Yes** |
 
