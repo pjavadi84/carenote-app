@@ -15,6 +15,7 @@ import {
   type AssignedClinician,
   type DirectoryClinician,
 } from "@/components/clinicians/resident-clinician-list";
+import { ResidentDeleteControls } from "@/components/data-requests/resident-delete-controls";
 import type { Resident, FamilyContact } from "@/types/database";
 
 export default async function ResidentDetailPage({
@@ -107,8 +108,20 @@ export default async function ResidentDetailPage({
 
   const clinicianDirectory = (directoryData ?? []) as DirectoryClinician[];
 
+  const isDeletedPending = resident.status === "deleted_pending";
+  const residentDisplayName = `${resident.first_name} ${resident.last_name}`;
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-5">
+      {isAdmin && isDeletedPending && (
+        <ResidentDeleteControls
+          residentId={id}
+          residentName={residentDisplayName}
+          status={resident.status}
+          variant="banner"
+        />
+      )}
+
       {/* Resident header */}
       <div className="mb-4 flex items-start justify-between">
         <div>
@@ -122,12 +135,12 @@ export default async function ResidentDetailPage({
               </span>
             )}
             <Badge variant="secondary" className="capitalize">
-              {resident.status}
+              {resident.status.replace("_", " ")}
             </Badge>
           </div>
         </div>
-        {isAdmin && (
-          <div className="flex gap-1.5">
+        {isAdmin && !isDeletedPending && (
+          <div className="flex gap-1.5 flex-wrap justify-end">
             <Link href={`/family/${id}/new`}>
               <Button variant="outline" size="sm">
                 <Mail className="mr-1 h-3 w-3" />
@@ -140,6 +153,12 @@ export default async function ResidentDetailPage({
                 Edit
               </Button>
             </Link>
+            <ResidentDeleteControls
+              residentId={id}
+              residentName={residentDisplayName}
+              status={resident.status}
+              variant="header-button"
+            />
           </div>
         )}
       </div>

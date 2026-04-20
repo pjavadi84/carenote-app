@@ -16,6 +16,7 @@ import {
   ShieldAlert,
   ScrollText,
   ClipboardList,
+  FileArchive,
 } from "lucide-react";
 import {
   Sheet,
@@ -138,6 +139,13 @@ export function AppShell({
                     >
                       <ScrollText className="h-4 w-4" />
                       Audit Log
+                    </Link>
+                    <Link
+                      href="/data-requests"
+                      className="flex items-center gap-3 rounded-md px-3 py-2 text-sm hover:bg-accent"
+                    >
+                      <FileArchive className="h-4 w-4" />
+                      Data Requests
                     </Link>
                     <Link
                       href="/settings"

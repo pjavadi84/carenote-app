@@ -19,7 +19,7 @@ The legal analysis behind this roadmap still needs review by qualified healthcar
 | 5 | Audit events | **Shipped** (commit 77a2acc) | — | Yes |
 | 6 | Role expansion & minimum-necessary | **Shipped** (commit 31d1cab) | — | No |
 | 7 | Session controls & rate limiting | **Shipped** (commit 3c152c9) | — | Yes |
-| 8 | Data subject rights (export + deletion) | Planned | 3-4 days | Yes |
+| 8 | Data subject rights (export + deletion) | **Shipped** (commit eb0664d) | — | Yes |
 | 9 | Voice & transcript retention | Planned | 1-2 days | No |
 | 10 | Compliance ops (BAAs, runbook, counsel) | Ongoing | Non-code | **Yes** |
 
@@ -465,26 +465,58 @@ pnpm dev
 
 ---
 
-## Phase 8 — Data subject rights (export + deletion)
+## Phase 8 — Data subject rights (export + deletion) ✅
 
-**Goal:** fulfill HIPAA individual-rights requests.
+**Shipped.** Admins can now export a resident's full record as a synchronous JSON download and run a two-step deletion flow (soft-delete → manual purge) with an append-only tombstone ledger. Every operation is logged on both `audit_events` and `disclosure_events`.
 
-### Scope
+### Design calls that trimmed the original plan
 
-**Export**
-- `POST /api/residents/[id]/export` (compliance_admin) → background job generates ZIP: profile JSON, notes (raw + structured) JSON + PDF, incidents, family communications, disclosure events, audit events involving this resident. Upload to Supabase Storage with 24h signed URL. Email when ready.
-- `POST /api/users/[id]/export` — user's own activity.
+1. **Export is synchronous JSON, not background ZIP+PDF.** The plan wanted a ZIP with PDF renderings delivered via signed URL email. That's a background queue + PDF renderer + Storage bucket — days of infra. For a 6-20 bed home's occasional portability request, a JSON download is pragmatically equivalent: the admin clicks, the browser saves the file, they forward it. A future enhancement can wrap the JSON + a PDF render when there's demand.
+2. **No 30-day automatic purge cron.** The plan proposed soft-delete then auto-purge after 30 days. Crons that silently delete data are exactly the class of infra bug that causes HIPAA breaches. Phase 8 ships manual purge with an explicit reason — the admin does the second step when they're ready. Gives the same outcome without a silent-deletion failure mode.
+3. **No user export / user deletion this phase.** The Phase 5 audit log CSV already covers "user's own activity"; hard-deleting users requires preserving audit trails via hashed user_id which is real complexity. Deactivate-via-Team already exists. Defer both.
 
-**Deletion**
-- `DELETE /api/residents/[id]` — soft-delete (`status='deleted_pending'`). Hard-delete cron runs after 30 days unless reversed. Cascades to notes/incidents/family/voice. Keeps a tombstone in `deletion_ledger` (date, reason, actor, resident hash).
-- `DELETE /api/users/[id]` — deactivate first. Hard-delete replaces `user_id` in audit_events with a hash — don't lose the audit trail.
+### What was built
 
-**UI** — `/settings/data-requests` for compliance_admin.
+**Migration — `supabase/migrations/00011_deletion_rights.sql`**
+- Adds `deleted_pending` to the `residents.status` CHECK enum.
+- Creates `deletion_ledger` (`id`, `organization_id`, nullable `resident_id`, `resident_name_hash`, `previous_status`, `deleted_at`, `deleted_by`, `reason`). Admin-read within org; no INSERT/UPDATE/DELETE policies so the ledger is append-only from the service-role path.
+- Indexes on (org, created_at DESC) for the ledger list, and on name_hash for future "has this person been purged before" lookups.
 
-### Verification
-- Export → ZIP contains all expected records.
-- Deletion → status changes, 30-day timer visible, reverse works, hard-delete cascades correctly.
-- Audit events referencing deleted user readable with hashed actor.
+**APIs**
+- `GET /api/residents/[id]/export` — synchronous JSON bundle: resident profile, family contacts, treating clinicians, notes, incidents, weekly summaries, family communications, disclosure events, audit events, voice sessions + transcripts. Served with `Content-Disposition: attachment` so the browser downloads. Logs an `export` audit event and an `agency_internal` / `operations` disclosure event.
+- `DELETE /api/residents/[id]` — soft-delete. Updates `status=deleted_pending` only if the current status is something else. 404s on re-delete.
+- `POST /api/residents/[id]/restore` — reverts to `active`. Only acts on rows currently in `deleted_pending`.
+- `POST /api/residents/[id]/purge` — hard-delete guarded by `status=deleted_pending` so a single admin click can't destroy a live chart. Requires a reason (≥5 chars). Writes the deletion_ledger row BEFORE the cascade delete so the audit survives even if the cascade fails.
+
+**UI**
+- `/data-requests` admin page: list of residents in `deleted_pending` with per-row Restore / Purge / Export actions, plus a read-only purge ledger showing name hashes, reasons, and actors.
+- Resident detail page: a Delete button in the admin header (when status != deleted_pending), or an amber banner with Restore / Purge / Export when status == deleted_pending.
+- Admin nav gains a "Data Requests" link.
+
+**Types** — augmented `database.ts` with `deletion_ledger`.
+
+### Known limitations to carry forward
+
+- **No PDF rendering.** JSON-only export. For human-readable output an admin copies the JSON into Word or a rendering tool. Future work if a customer asks.
+- **No background job + email.** Exports are synchronous; a very large resident chart could stress a single request, though in practice 6-20 bed homes won't come close to the limit.
+- **Cascade destroys disclosure_events tied to the resident.** The roadmap design notes this: a purge means we lose the external-disclosure accounting for that resident. The deletion_ledger records that a purge happened but not the historical disclosures. Acceptable trade-off for a purge that's intended to fully destroy the record (e.g., wrong-resident creation); use `discharged` / `deceased` statuses for residents whose records you want to retain.
+- **No retention / archival tier.** Purged data is gone; there's no "legal hold" escape hatch for pending litigation. Add via the purge dialog if a customer ever asks — block purge when a hold tag exists.
+- **User export and user deletion are still missing.** See design calls above. Covered workflows today: Phase 5 CSV export for user activity; deactivation via `/team` for user removal.
+- **Export bundle does NOT include role-expanded filtering.** If a compliance_admin wants a "what would this ops_staff user have seen" synthesis, it's not available. Phase 6's minimum-necessary matrix is enforcement-only.
+
+### How to verify
+
+```bash
+supabase db reset        # applies 00001-00011
+pnpm dev
+```
+
+1. As admin, open a resident's page → click Delete → confirm in the dialog. Status flips to "deleted pending" and the resident disappears from `/residents`.
+2. Visit `/data-requests` → see the resident in Pending deletion with Restore / Purge / Export buttons. Click Export → a JSON file downloads containing every record about the resident.
+3. Click Restore → the resident reappears on `/residents`. The soft-delete and restore both show up in `/audit-log` as `permission_change` events.
+4. Delete again → click Purge → type a reason → confirm. The resident is gone; the ledger row shows a name hash, the reason, and the actor. Notes, incidents, family contacts, voice sessions all cascaded.
+5. As a non-admin user, hit `DELETE /api/residents/...` via curl → 403. Hit the export endpoint → 403.
+6. Try to purge an `active` resident via the API (without going through soft-delete first) → 400 "Resident must be in deleted_pending state before purging".
 
 ---
 

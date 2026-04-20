@@ -956,6 +956,54 @@ export type Database = {
           },
         ]
       }
+      deletion_ledger: {
+        Row: {
+          deleted_at: string
+          deleted_by: string | null
+          id: string
+          organization_id: string
+          previous_status: string
+          reason: string
+          resident_id: string | null
+          resident_name_hash: string
+        }
+        Insert: {
+          deleted_at?: string
+          deleted_by?: string | null
+          id?: string
+          organization_id: string
+          previous_status: string
+          reason: string
+          resident_id?: string | null
+          resident_name_hash: string
+        }
+        Update: {
+          deleted_at?: string
+          deleted_by?: string | null
+          id?: string
+          organization_id?: string
+          previous_status?: string
+          reason?: string
+          resident_id?: string | null
+          resident_name_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deletion_ledger_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deletion_ledger_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       caregiver_assignments: {
         Row: {
           caregiver_id: string
