@@ -16,7 +16,7 @@ The legal analysis behind this roadmap still needs review by qualified healthcar
 | 2 | Family authorization & consent | **Shipped** (commit d4b61e7) | — | Yes |
 | 3 | Disclosure classification tags | **Shipped** (commit 14f654c) | — | Yes |
 | 4 | Sensitive-data segmentation (42 CFR Part 2) | **Shipped** (commit 3b50726) | — | Yes |
-| 5 | Audit events | **Shipped** (commit TBD) | — | Yes |
+| 5 | Audit events | **Shipped** (commit 77a2acc) | — | Yes |
 | 6 | Role expansion & minimum-necessary | Planned | 3-5 days | No |
 | 7 | Session controls & rate limiting | Planned | 2-3 days | Yes |
 | 8 | Data subject rights (export + deletion) | Planned | 3-4 days | Yes |
