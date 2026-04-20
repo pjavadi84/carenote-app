@@ -6,13 +6,39 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Mic, PhoneOff, Loader2, AlertTriangle } from "lucide-react";
+import { Mic, PhoneOff, Loader2, AlertTriangle, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
 type CallState = "idle" | "starting" | "in-call" | "ending" | "structuring";
+
+// Recording-consent cookie stored in localStorage. Bumping the version
+// invalidates prior consents (e.g., if the disclosure copy materially
+// changes). Server audits the value the client sends.
+const CONSENT_VERSION = "v1";
+const CONSENT_STORAGE_KEY = "carenote_voice_consent_v1";
+
+function readStoredConsent(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(CONSENT_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function persistConsent(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(CONSENT_STORAGE_KEY, "true");
+  } catch {
+    // localStorage unavailable (private mode); fall through — user will
+    // see the consent dialog on each call, which is acceptable.
+  }
+}
 
 interface VapiClient {
   on: (event: string, handler: (...args: unknown[]) => void) => void;
@@ -27,6 +53,8 @@ export function VoiceCallButton({ residentId }: { residentId: string }) {
   const [state, setState] = useState<CallState>("idle");
   const [incidentPromptOpen, setIncidentPromptOpen] = useState(false);
   const [pendingNoteId, setPendingNoteId] = useState<string | null>(null);
+  const [consentOpen, setConsentOpen] = useState(false);
+  const [consentAccepting, setConsentAccepting] = useState(false);
   const vapiRef = useRef<VapiClient | null>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const sessionIdRef = useRef<string | null>(null);
@@ -117,13 +145,33 @@ export function VoiceCallButton({ residentId }: { residentId: string }) {
     toast.success("Note structured and saved");
   }
 
+  function handleStartClick() {
+    if (!readStoredConsent()) {
+      setConsentOpen(true);
+      return;
+    }
+    void handleStart();
+  }
+
+  async function handleConsentAccept() {
+    setConsentAccepting(true);
+    persistConsent();
+    setConsentOpen(false);
+    setConsentAccepting(false);
+    await handleStart();
+  }
+
   async function handleStart() {
     setState("starting");
     try {
       const res = await fetch("/api/voice/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ residentId }),
+        body: JSON.stringify({
+          residentId,
+          recordingConsentAccepted: true,
+          recordingConsentVersion: CONSENT_VERSION,
+        }),
       });
 
       if (!res.ok) {
@@ -181,7 +229,7 @@ export function VoiceCallButton({ residentId }: { residentId: string }) {
           End Call
         </Button>
       ) : (
-        <Button onClick={handleStart} disabled={state === "starting"} variant="outline">
+        <Button onClick={handleStartClick} disabled={state === "starting"} variant="outline">
           {state === "starting" ? (
             <Loader2 className="mr-1 h-4 w-4 animate-spin" />
           ) : (
@@ -190,6 +238,57 @@ export function VoiceCallButton({ residentId }: { residentId: string }) {
           Voice Call
         </Button>
       )}
+
+      <Dialog open={consentOpen} onOpenChange={setConsentOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              Recording notice
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="text-muted-foreground">
+              Voice calls on CareNote are transcribed and turned into a
+              structured care note. By continuing, you acknowledge:
+            </p>
+            <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+              <li>This call will be recorded and transcribed.</li>
+              <li>
+                The transcript and the AI-structured note become part of this
+                resident&apos;s care record in CareNote.
+              </li>
+              <li>
+                You&apos;re authorized to document care for this resident on
+                behalf of your facility.
+              </li>
+              <li>
+                Audio is not stored; transcripts are retained or deleted per
+                your facility&apos;s retention setting.
+              </li>
+            </ul>
+            <p className="text-xs text-muted-foreground">
+              This acknowledgment is recorded on the audit log for compliance.
+              You&apos;ll only see this notice once on this device.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setConsentOpen(false)}
+              disabled={consentAccepting}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConsentAccept}
+              disabled={consentAccepting}
+            >
+              {consentAccepting ? "Starting…" : "I acknowledge — start call"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={incidentPromptOpen} onOpenChange={setIncidentPromptOpen}>
         <DialogContent>
