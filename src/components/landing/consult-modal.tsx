@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useState, useRef, useCallback } from "react"
-import { X, Mic, Square, Loader2, FileText, Copy, Check, Volume2, ArrowRight, AlertCircle } from "lucide-react"
+import { X, Mic, Square, Loader2, FileText, Copy, Check, Volume2, ArrowRight, AlertCircle, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { isDemoActive } from "@/lib/demos/registry"
 import Link from "next/link"
 
 interface ConsultModalProps {
@@ -200,6 +201,43 @@ export function ConsultModal({ isOpen, onClose, selectedRole }: ConsultModalProp
   }
 
   if (!isOpen) return null
+
+  if (!isDemoActive("consult")) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div
+          className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+          onClick={handleClose}
+        />
+        <div className="relative flex w-full max-w-md flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+          <div className="flex items-center justify-between border-b border-border px-6 py-4">
+            <h2 className="text-lg font-semibold text-foreground">AI Consultation</h2>
+            <Button variant="ghost" size="icon" onClick={handleClose}>
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+          <div className="flex flex-col items-center gap-4 px-6 py-12 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+              <Sparkles className="h-7 w-7 text-primary" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground">
+              Demo coming soon
+            </h3>
+            <p className="max-w-sm text-sm text-muted-foreground">
+              We&apos;re polishing the interactive demo. Join the waitlist
+              below and we&apos;ll send you a personalized walkthrough.
+            </p>
+            <Link href="/signup">
+              <Button className="gap-2">
+                Get Early Access
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const buttonAction =
     recordingState === "recording" ? stopRecording : startRecording

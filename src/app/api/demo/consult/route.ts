@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callClaude } from "@/lib/claude";
 import { checkRate } from "@/lib/rate-limit";
+import { isDemoActive } from "@/lib/demos/registry";
 import {
   CAREGIVER_DEMO_SYSTEM_PROMPT,
   DOCTOR_DEMO_SYSTEM_PROMPT,
@@ -71,6 +72,13 @@ function isSameOrigin(request: NextRequest): boolean {
 }
 
 export async function POST(request: NextRequest) {
+  if (!isDemoActive("consult")) {
+    return NextResponse.json(
+      { error: "Demo is temporarily disabled." },
+      { status: 503 }
+    );
+  }
+
   if (process.env.DEMO_CONSULT_DISABLED === "true") {
     return NextResponse.json(
       { error: "Demo is temporarily disabled." },
@@ -79,6 +87,13 @@ export async function POST(request: NextRequest) {
   }
 
   if (!process.env.OPENAI_API_KEY || !process.env.ANTHROPIC_API_KEY) {
+    console.warn(
+      "[demo/consult] Demo not configured — missing keys:",
+      JSON.stringify({
+        OPENAI_API_KEY: Boolean(process.env.OPENAI_API_KEY),
+        ANTHROPIC_API_KEY: Boolean(process.env.ANTHROPIC_API_KEY),
+      })
+    );
     return NextResponse.json(
       { error: "Demo is not configured." },
       { status: 503 }
@@ -161,6 +176,12 @@ export async function POST(request: NextRequest) {
     );
 
     if (!response.ok) {
+      const detail = await response.text().catch(() => "<no body>");
+      console.warn(
+        "[demo/consult] Whisper non-OK:",
+        response.status,
+        detail.slice(0, 500)
+      );
       return NextResponse.json(
         { error: "Transcription failed" },
         { status: 502 }
@@ -169,7 +190,11 @@ export async function POST(request: NextRequest) {
 
     const result = (await response.json()) as { text?: string };
     transcript = (result.text ?? "").trim();
-  } catch {
+  } catch (err: unknown) {
+    console.warn(
+      "[demo/consult] Whisper threw:",
+      err instanceof Error ? err.message : String(err)
+    );
     return NextResponse.json(
       { error: "Transcription failed" },
       { status: 502 }
@@ -196,7 +221,11 @@ export async function POST(request: NextRequest) {
       userPrompt: buildDemoUserPrompt(transcript, new Date().toISOString()),
       maxTokens: CLAUDE_MAX_TOKENS,
     });
-  } catch {
+  } catch (err: unknown) {
+    console.warn(
+      "[demo/consult] Claude threw:",
+      err instanceof Error ? err.message : String(err)
+    );
     return NextResponse.json(
       { error: "Could not generate documentation. Please try again." },
       { status: 502 }
