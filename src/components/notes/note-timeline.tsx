@@ -47,7 +47,7 @@ const WARNING_CATEGORY_LABELS: Record<string, string> = {
   non_care_gossip: "Non-care gossip",
 };
 
-type NoteWithRelations = Note & {
+export type NoteWithRelations = Note & {
   residents: { first_name: string; last_name: string } | null;
   users: { full_name: string } | null;
 };
