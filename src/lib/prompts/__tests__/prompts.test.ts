@@ -140,6 +140,7 @@ describe("Weekly Summary Prompt", () => {
       residentFirstName: "Dorothy",
       residentLastName: "Chen",
       conditions: "dementia",
+      careNotesContext: "Prefers quiet evenings",
       weekStart: "2026-03-30",
       weekEnd: "2026-04-05",
       notes: [
@@ -153,6 +154,7 @@ describe("Weekly Summary Prompt", () => {
     });
 
     expect(prompt).toContain("Dorothy Chen");
+    expect(prompt).toContain("Prefers quiet evenings");
     expect(prompt).toContain("morning");
     expect(prompt).toContain("Good morning");
   });

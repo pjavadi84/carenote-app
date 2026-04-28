@@ -55,7 +55,7 @@ export async function runWeeklySummaries(
 
     const { data: residents } = await supabase
       .from("residents")
-      .select("id, first_name, last_name, conditions")
+      .select("id, first_name, last_name, conditions, care_notes_context")
       .eq("organization_id", org.id)
       .eq("status", "active");
 
@@ -105,6 +105,7 @@ export async function runWeeklySummaries(
             residentFirstName: resident.first_name,
             residentLastName: resident.last_name,
             conditions: resident.conditions,
+            careNotesContext: resident.care_notes_context,
             weekStart: weekStartStr,
             weekEnd: weekEndStr,
             notes: notes.map((n) => ({

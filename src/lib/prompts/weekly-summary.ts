@@ -34,6 +34,7 @@ export function buildWeeklySummaryUserPrompt(params: {
   residentFirstName: string;
   residentLastName: string;
   conditions: string | null;
+  careNotesContext: string | null;
   weekStart: string;
   weekEnd: string;
   notes: Array<{
@@ -52,6 +53,7 @@ export function buildWeeklySummaryUserPrompt(params: {
 
   return `Facility: ${params.facilityName}
 Resident: ${params.residentFirstName} ${params.residentLastName}
+Resident context: ${params.careNotesContext || "None provided"}
 Known conditions: ${params.conditions || "None documented"}
 Week: ${params.weekStart} to ${params.weekEnd}
 
