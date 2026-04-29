@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 
+const TODAY_PAGE_LIMIT = 300;
+
 export default async function TodayPage() {
   const user = await getAuthenticatedUser();
   const supabase = await createClient();
@@ -23,7 +25,10 @@ export default async function TodayPage() {
     )
     .eq("organization_id", user.organization_id)
     .gte("created_at", today.toISOString())
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(TODAY_PAGE_LIMIT);
+
+  const truncated = (notes?.length ?? 0) === TODAY_PAGE_LIMIT;
 
   return (
     <div className="px-4 py-6">
@@ -58,7 +63,17 @@ export default async function TodayPage() {
           </Link>
         </div>
       ) : (
-        <NoteTimeline notes={notes as Parameters<typeof NoteTimeline>[0]["notes"]} />
+        <>
+          {truncated && (
+            <div className="mb-3 rounded-md border border-amber-500/40 bg-amber-50/40 dark:bg-amber-950/20 p-3 text-xs text-amber-800 dark:text-amber-300">
+              Showing the {TODAY_PAGE_LIMIT} most recent notes for today. Open
+              a resident to see their full history.
+            </div>
+          )}
+          <NoteTimeline
+            notes={notes as Parameters<typeof NoteTimeline>[0]["notes"]}
+          />
+        </>
       )}
     </div>
   );

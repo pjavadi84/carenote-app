@@ -9,6 +9,12 @@ import { Pencil, Mail } from "lucide-react";
 import { NoteTimeline } from "@/components/notes/note-timeline";
 import { NoteInputForm } from "@/components/notes/note-input-form";
 import { VoiceCallButton } from "@/components/notes/voice-call-button";
+import { NoteFilters } from "@/components/notes/note-filters";
+import {
+  NotesPaginationControl,
+  NOTES_PAGE_DEFAULT,
+  NOTES_PAGE_SOFT_CAP,
+} from "@/components/notes/notes-pagination-control";
 import { FamilyContactList } from "@/components/residents/family-contact-list";
 import {
   ResidentClinicianList,
@@ -18,12 +24,25 @@ import {
 import { ResidentDeleteControls } from "@/components/data-requests/resident-delete-controls";
 import type { Resident, FamilyContact } from "@/types/database";
 
+type SearchParams = {
+  from?: string;
+  to?: string;
+  shift?: string;
+  incident?: string;
+  count?: string;
+};
+
+const VALID_SHIFTS = new Set(["morning", "afternoon", "night"]);
+
 export default async function ResidentDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<SearchParams>;
 }) {
   const { id } = await params;
+  const filters = await searchParams;
   const user = await getAuthenticatedUser();
   const supabase = await createClient();
 
@@ -37,7 +56,13 @@ export default async function ResidentDetailPage({
   const resident = residentData as Resident | null;
   if (!resident) notFound();
 
-  const { data: notes } = await supabase
+  const requestedCount = Number.parseInt(filters.count ?? "", 10);
+  const count =
+    Number.isFinite(requestedCount) && requestedCount >= NOTES_PAGE_DEFAULT
+      ? Math.min(requestedCount, NOTES_PAGE_SOFT_CAP)
+      : NOTES_PAGE_DEFAULT;
+
+  let notesQuery = supabase
     .from("notes")
     .select(
       `
@@ -48,7 +73,25 @@ export default async function ResidentDetailPage({
     )
     .eq("resident_id", id)
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(count);
+
+  if (filters.from) {
+    notesQuery = notesQuery.gte("created_at", filters.from);
+  }
+  if (filters.to) {
+    notesQuery = notesQuery.lte("created_at", filters.to + "T23:59:59Z");
+  }
+  if (filters.shift && VALID_SHIFTS.has(filters.shift)) {
+    notesQuery = notesQuery.eq("shift", filters.shift);
+  }
+  if (filters.incident === "true") {
+    notesQuery = notesQuery.eq("flagged_as_incident", true);
+  }
+
+  const { data: notes } = await notesQuery;
+  const hasFilters = Boolean(
+    filters.from || filters.to || filters.shift || filters.incident
+  );
 
   // Phase 4: count sensitive notes the caller can't see (admins and authors
   // see them directly; everyone else gets a placeholder count).
@@ -213,15 +256,36 @@ export default async function ResidentDetailPage({
       {/* Note timeline */}
       <div className="mt-5">
         <h3 className="mb-3 text-base font-medium">Notes</h3>
+        <div className="mb-3">
+          <NoteFilters
+            basePath={`/residents/${id}`}
+            initialFrom={filters.from ?? ""}
+            initialTo={filters.to ?? ""}
+            initialShift={filters.shift ?? "all"}
+            initialIncident={filters.incident ?? "all"}
+          />
+        </div>
         {(!notes || notes.length === 0) && hiddenSensitiveCount === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No notes for this resident yet.
+            {hasFilters
+              ? "No notes match the current filters."
+              : "No notes for this resident yet."}
           </p>
         ) : (
-          <NoteTimeline
-            notes={(notes ?? []) as Parameters<typeof NoteTimeline>[0]["notes"]}
-            hiddenSensitiveCount={hiddenSensitiveCount}
-          />
+          <>
+            <NoteTimeline
+              notes={
+                (notes ?? []) as Parameters<typeof NoteTimeline>[0]["notes"]
+              }
+              hiddenSensitiveCount={hiddenSensitiveCount}
+            />
+            <NotesPaginationControl
+              basePath={`/residents/${id}`}
+              currentSearchParams={filters}
+              count={count}
+              notesLength={notes?.length ?? 0}
+            />
+          </>
         )}
       </div>
     </div>
