@@ -80,7 +80,7 @@ export function buildAssistantOverrides(params: {
 
   const overrides: {
     variableValues: Record<string, string>;
-    transcriber?: { keyterms: string[] };
+    transcriber?: { provider: "deepgram"; keyterms: string[] };
   } = {
     variableValues: {
       caregiver_name: caregiverName,
@@ -102,7 +102,7 @@ export function buildAssistantOverrides(params: {
   // Applies only when the Vapi assistant uses Deepgram Nova 3 (current).
   const cleaned = (keyterms || []).filter((k) => k && k.trim().length > 0);
   if (cleaned.length > 0) {
-    overrides.transcriber = { keyterms: cleaned };
+    overrides.transcriber = { provider: "deepgram", keyterms: cleaned };
   }
 
   return overrides;
