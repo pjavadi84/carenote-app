@@ -10,6 +10,7 @@ import {
   SUMMARY_PRESETS,
   type SummaryPreset,
 } from "@/lib/summary/preset-range";
+import { getEffectiveStructuredOutputForLlm } from "@/lib/notes/effective-output";
 
 // On-demand "summarise the last 8 hours / today / this week" for the
 // caregiver themselves. NOT a disclosure surface: the data is
@@ -191,7 +192,11 @@ export async function POST(
         created_at: n.created_at,
         shift: n.shift,
         author_name: n.users?.full_name ?? "Unknown",
-        structured_output: n.edited_output || n.structured_output || "",
+        structured_output:
+          getEffectiveStructuredOutputForLlm({
+            structured_output: n.structured_output,
+            edited_output: n.edited_output,
+          }) ?? "",
       })),
   });
 

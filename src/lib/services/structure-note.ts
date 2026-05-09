@@ -16,6 +16,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { callClaude, parseJsonResponse } from "@/lib/claude";
+import { redactPhiText } from "@/lib/redaction";
 import {
   SHIFT_NOTE_SYSTEM_PROMPT,
   buildShiftNoteUserPrompt,
@@ -155,12 +156,16 @@ export async function structureNote(
       userPrompt: buildShiftNoteUserPrompt({
         residentFirstName: resident.first_name,
         residentLastName: resident.last_name,
-        careNotesContext: resident.care_notes_context,
-        conditions: resident.conditions,
+        careNotesContext: resident.care_notes_context
+          ? redactPhiText(resident.care_notes_context)
+          : null,
+        conditions: resident.conditions
+          ? redactPhiText(resident.conditions)
+          : null,
         timestamp: note.created_at,
         caregiverName:
           (author as { full_name: string } | null)?.full_name || "Unknown",
-        rawInput: note.raw_input,
+        rawInput: redactPhiText(note.raw_input),
         localeContext: options.localeContext ?? undefined,
       }),
     });

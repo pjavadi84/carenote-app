@@ -79,5 +79,50 @@ describe("vapi", () => {
       expect(result.transcriber?.provider).toBe("deepgram");
       expect(result.transcriber?.keyterms).toEqual(["雅婷", "metformin"]);
     });
+
+    it("redacts PHI from caregiver-authored fields before they leave for Vapi", () => {
+      const result = buildAssistantOverrides({
+        caregiverName: "Maria Santos",
+        caregiverLanguage: "en",
+        residentFirstName: "陳奶奶",
+        residentLastName: "陳",
+        residentLanguage: "zh-TW",
+        outputLanguage: "zh-TW",
+        honorificPreference: "阿嬤",
+        culturalRegister: "indirect",
+        conditions: "Type 2 diabetes; ROC ID A123456789 on chart",
+        careNotesContext:
+          "Lives at 台北市信義區信義路五段7號 with daughter",
+        recentNotesSummary:
+          "5/1: DOB 1942-03-22 noted on intake. 4/30: walked 15 min.",
+        recentIncidents: "NHI card 000012345678 lost, replaced.",
+      });
+
+      expect(result.variableValues.conditions).toContain("[ROC_ID_REDACTED]");
+      expect(result.variableValues.conditions).not.toContain("A123456789");
+
+      expect(result.variableValues.care_context).toContain(
+        "[ADDRESS_REDACTED]"
+      );
+      expect(result.variableValues.care_context).not.toContain("信義路五段7號");
+
+      expect(result.variableValues.recent_notes_summary).toMatch(
+        /early 1940s/
+      );
+      expect(result.variableValues.recent_notes_summary).not.toContain(
+        "1942-03-22"
+      );
+
+      expect(result.variableValues.recent_incidents).toContain(
+        "[ID_REDACTED]"
+      );
+      expect(result.variableValues.recent_incidents).not.toContain(
+        "000012345678"
+      );
+
+      // Resident given names are intentionally NOT redacted (clinical
+      // context demands being able to address the resident).
+      expect(result.variableValues.resident_first_name).toBe("陳奶奶");
+    });
   });
 });

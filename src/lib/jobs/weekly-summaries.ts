@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { callClaude, parseJsonResponse } from "@/lib/claude";
-import { getEffectiveStructuredOutput } from "@/lib/notes/effective-output";
+import { getEffectiveStructuredOutputForLlm } from "@/lib/notes/effective-output";
+import { getResidentContext } from "@/lib/i18n/locale";
 import {
   hasActivePdpaConsent,
   pdpaConsentRequired,
@@ -117,6 +118,10 @@ export async function runWeeklySummaries(
         (authors ?? []).map((a: { id: string; full_name: string }) => [a.id, a.full_name])
       );
 
+      // Weekly summary is distributed to admins/caregivers — render in
+      // the resident's locale (which falls back to org.default_output_language).
+      const localeContext = await getResidentContext(resident.id);
+
       try {
         const raw = await callClaude({
           systemPrompt: WEEKLY_SUMMARY_SYSTEM_PROMPT,
@@ -132,8 +137,9 @@ export async function runWeeklySummaries(
               created_at: n.created_at,
               author_name: authorMap.get(n.author_id) || "Staff",
               shift: n.shift,
-              structured_output: getEffectiveStructuredOutput(n) ?? "",
+              structured_output: getEffectiveStructuredOutputForLlm(n) ?? "",
             })),
+            localeContext,
           }),
           maxTokens: 1500,
         });

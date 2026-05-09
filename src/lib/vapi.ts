@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { redactPhiText } from "@/lib/redaction";
 
 export interface VapiEndOfCallReport {
   type: "end-of-call-report";
@@ -78,6 +79,11 @@ export function buildAssistantOverrides(params: {
     keyterms,
   } = params;
 
+  // Redact PHI from caregiver-authored free-text fields before they leave
+  // Kinroster for Vapi → upstream LLMs. Resident first/last names are NOT
+  // redacted (clinical context demands being able to address the resident);
+  // government IDs, postal addresses, NHI card numbers, and full DOBs in
+  // the body of these fields are stripped. See src/lib/redaction.ts.
   const overrides: {
     variableValues: Record<string, string>;
     transcriber?: { provider: "deepgram"; keyterms: string[] };
@@ -91,10 +97,16 @@ export function buildAssistantOverrides(params: {
       output_language: outputLanguage,
       honorific_preference: honorificPreference || "",
       cultural_register: culturalRegister,
-      conditions: conditions || "none on file",
-      care_context: careNotesContext || "none on file",
-      recent_notes_summary: recentNotesSummary || "no recent notes",
-      recent_incidents: recentIncidents || "no recent incidents",
+      conditions: conditions ? redactPhiText(conditions) : "none on file",
+      care_context: careNotesContext
+        ? redactPhiText(careNotesContext)
+        : "none on file",
+      recent_notes_summary: recentNotesSummary
+        ? redactPhiText(recentNotesSummary)
+        : "no recent notes",
+      recent_incidents: recentIncidents
+        ? redactPhiText(recentIncidents)
+        : "no recent incidents",
     },
   };
 

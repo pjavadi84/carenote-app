@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { callClaude, parseJsonResponse } from "@/lib/claude";
+import { redactPhiText } from "@/lib/redaction";
+import { getResidentContext } from "@/lib/i18n/locale";
 import {
   INCIDENT_REPORT_SYSTEM_PROMPT,
   buildIncidentReportUserPrompt,
@@ -49,16 +51,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Resident not found" }, { status: 404 });
   }
 
+  const localeContext = await getResidentContext(note.resident_id);
+
   try {
     const raw = await callClaude({
       systemPrompt: INCIDENT_REPORT_SYSTEM_PROMPT,
       userPrompt: buildIncidentReportUserPrompt({
         residentFirstName: resident.first_name,
         residentLastName: resident.last_name,
-        conditions: resident.conditions,
+        conditions: resident.conditions
+          ? redactPhiText(resident.conditions)
+          : null,
         timestamp: note.created_at,
         caregiverName: (author as { full_name: string } | null)?.full_name || "Unknown",
-        rawInput: note.raw_input,
+        rawInput: redactPhiText(note.raw_input),
+        localeContext,
       }),
       maxTokens: 1500,
     });
