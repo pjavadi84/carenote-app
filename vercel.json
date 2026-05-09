@@ -1,2 +1,8 @@
 {
+  "crons": [
+    {
+      "path": "/api/cron/retry-failed-structuring",
+      "schedule": "*/15 * * * *"
+    }
+  ]
 }
