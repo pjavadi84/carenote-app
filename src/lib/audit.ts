@@ -29,7 +29,8 @@ export type AuditEventType =
   | "sensitive_access_revoke"
   | "permission_change"
   | "export"
-  | "failed_access";
+  | "failed_access"
+  | "note_retry_structuring";
 
 export type AuditResult = "success" | "denied" | "error";
 

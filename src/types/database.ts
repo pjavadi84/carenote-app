@@ -297,7 +297,9 @@ export type Database = {
           sensitive_flag: boolean
           shift: string | null
           structured_output: string | null
+          structuring_attempts: number
           structuring_error: string | null
+          structuring_giving_up: boolean
           updated_at: string
         }
         Insert: {
@@ -319,7 +321,9 @@ export type Database = {
           sensitive_flag?: boolean
           shift?: string | null
           structured_output?: string | null
+          structuring_attempts?: number
           structuring_error?: string | null
+          structuring_giving_up?: boolean
           updated_at?: string
         }
         Update: {
@@ -341,7 +345,9 @@ export type Database = {
           sensitive_flag?: boolean
           shift?: string | null
           structured_output?: string | null
+          structuring_attempts?: number
           structuring_error?: string | null
+          structuring_giving_up?: boolean
           updated_at?: string
         }
         Relationships: [
