@@ -7,6 +7,7 @@ import { getCaregiverLocale, getResidentContext } from "@/lib/i18n/locale";
 import { getEffectiveStructuredOutput } from "@/lib/notes/effective-output";
 import {
   hasActivePdpaConsent,
+  hasCaregiverPdpaConsent,
   pdpaConsentRequired,
 } from "@/lib/pdpa/active-consent";
 
@@ -129,13 +130,20 @@ export async function POST(request: NextRequest) {
         ?.settings
     )
   ) {
-    const consented = await hasActivePdpaConsent(supabase, resident.id);
-    if (!consented) {
+    const [residentOk, caregiverOk] = await Promise.all([
+      hasActivePdpaConsent(supabase, resident.id),
+      hasCaregiverPdpaConsent(supabase, appUser.id),
+    ]);
+    if (!residentOk || !caregiverOk) {
       return NextResponse.json(
         {
           error:
-            "PDPA consent missing. Capture a resident PDPA consent record before starting voice intake for this resident.",
+            "PDPA consent missing. Both the resident's PHI consent and the caregiver's standing PDPA consent must be on file before starting voice intake.",
           code: "pdpa_consent_required",
+          missing: {
+            resident: !residentOk,
+            caregiver: !caregiverOk,
+          },
         },
         { status: 403 }
       );
