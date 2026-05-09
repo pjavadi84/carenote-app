@@ -4,12 +4,8 @@ import { verifyVapiWebhook, type VapiWebhookEvent } from "@/lib/vapi";
 import { callClaude, parseJsonResponse } from "@/lib/claude";
 import { incrementUsage } from "@/lib/quota";
 import { getResidentContext } from "@/lib/i18n/locale";
+import { structureNote } from "@/lib/services/structure-note";
 import type { Json } from "@/types/database";
-import {
-  SHIFT_NOTE_SYSTEM_PROMPT,
-  buildShiftNoteUserPrompt,
-  type StructuredNoteOutput,
-} from "@/lib/prompts/shift-note";
 import {
   VOICE_SANITY_SYSTEM_PROMPT,
   VOICE_SANITY_MODEL,
@@ -153,33 +149,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true, skipped: "empty transcript" });
     }
 
-    const [{ data: resident }, { data: author }, { data: org }] =
-      await Promise.all([
-        supabase
-          .from("residents")
-          .select("first_name, last_name, care_notes_context, conditions")
-          .eq("id", session.resident_id)
-          .single(),
-        supabase
-          .from("users")
-          .select("full_name")
-          .eq("id", session.caregiver_id)
-          .single(),
-        supabase
-          .from("organizations")
-          .select("settings")
-          .eq("id", session.organization_id)
-          .single(),
-      ]);
+    // Resident is sanity-checked here so we can short-circuit a missing
+    // record before queueing structuring. Author name is looked up inside
+    // structureNote(); org is needed for the retain_transcripts setting.
+    const [{ data: resident }, { data: org }] = await Promise.all([
+      supabase
+        .from("residents")
+        .select("first_name, last_name")
+        .eq("id", session.resident_id)
+        .single(),
+      supabase
+        .from("organizations")
+        .select("settings")
+        .eq("id", session.organization_id)
+        .single(),
+    ]);
 
-    const residentRow = resident as {
-      first_name: string;
-      last_name: string;
-      care_notes_context: string | null;
-      conditions: string | null;
-    } | null;
-
-    if (!residentRow) {
+    if (!resident) {
       return NextResponse.json({ received: true, skipped: "resident missing" });
     }
 
@@ -225,38 +211,28 @@ export async function POST(request: NextRequest) {
     const localeContext = await getResidentContext(session.resident_id);
 
     // Structuring and voice-sanity run in parallel. Sanity is informational
-    // and never blocks — if it fails we just omit the warning.
+    // and never blocks — if it fails we just omit the warning. Structuring
+    // goes through the shared structureNote service so attempt-counting,
+    // give-up, and outbound-edited_output rules stay in one place.
     const [structureResult, sanityResult] = await Promise.allSettled([
-      (async () => {
-        await supabase
-          .from("notes")
-          .update({ last_structuring_attempt_at: new Date().toISOString() })
-          .eq("id", note.id);
-
-        const raw = await callClaude({
-          systemPrompt: SHIFT_NOTE_SYSTEM_PROMPT,
-          userPrompt: buildShiftNoteUserPrompt({
-            residentFirstName: residentRow.first_name,
-            residentLastName: residentRow.last_name,
-            careNotesContext: residentRow.care_notes_context,
-            conditions: residentRow.conditions,
-            timestamp: note.created_at,
-            caregiverName: (author as { full_name: string } | null)?.full_name || "Unknown",
-            rawInput: transcript,
-            localeContext,
-          }),
-        });
-        return parseJsonResponse<StructuredNoteOutput>(raw);
-      })(),
+      structureNote(supabase, note.id, {
+        localeContext,
+        extraMetadata: {
+          source: "voice_call",
+          voice_session_id: session.id,
+        },
+      }),
       runVoiceSanity(transcript),
     ]);
 
-    if (structureResult.status === "fulfilled") {
-      const structured = structureResult.value;
-      const hasFlags = structured.flags && structured.flags.length > 0;
-      const sections = Array.isArray(structured.sections)
-        ? structured.sections
-        : [];
+    if (
+      structureResult.status === "fulfilled" &&
+      structureResult.value.success
+    ) {
+      incrementUsage(session.organization_id, "ai").catch(() => {});
+
+      // If sanity flagged concerns, fold them into metadata as a follow-up
+      // update so they're visible to the caregiver UI.
       const overCaptureWarning =
         sanityResult.status === "fulfilled" &&
         sanityResult.value &&
@@ -264,29 +240,25 @@ export async function POST(request: NextRequest) {
           ? sanityResult.value
           : null;
 
-      incrementUsage(session.organization_id, "ai").catch(() => {});
-
-      await supabase
-        .from("notes")
-        .update({
-          structured_output: JSON.stringify(structured),
-          is_structured: true,
-          structuring_error: null,
-          flagged_as_incident: hasFlags,
-          sensitive_flag: structured.sensitive_flag === true,
-          sensitive_category: structured.sensitive_category ?? null,
-          metadata: {
-            source: "voice_call",
-            voice_session_id: session.id,
-            categories: sections.map((s) => s.name),
-            flags: structured.flags || [],
-            ai_classification: hasFlags ? "possible_incident" : "routine",
-            model_used: "claude-sonnet-4-6",
-            structured_output_version: "v2",
-            over_capture_warning: (overCaptureWarning ?? null) as Json,
-          } as Json,
-        })
-        .eq("id", note.id);
+      if (overCaptureWarning) {
+        const { data: noteAfter } = await supabase
+          .from("notes")
+          .select("metadata")
+          .eq("id", note.id)
+          .single();
+        const existingMetadata =
+          (noteAfter as { metadata: Record<string, unknown> | null } | null)
+            ?.metadata ?? {};
+        await supabase
+          .from("notes")
+          .update({
+            metadata: {
+              ...existingMetadata,
+              over_capture_warning: overCaptureWarning as unknown as Json,
+            } as Json,
+          })
+          .eq("id", note.id);
+      }
 
       // Retention cleanup. Runs after the note carries the finalized
       // structured_output so the raw transcript is no longer needed for
@@ -303,15 +275,6 @@ export async function POST(request: NextRequest) {
           .update({ full_transcript: null })
           .eq("id", session.id);
       }
-    } else {
-      const message =
-        structureResult.reason instanceof Error
-          ? structureResult.reason.message
-          : "Unknown error";
-      await supabase
-        .from("notes")
-        .update({ structuring_error: message, is_structured: false })
-        .eq("id", note.id);
     }
 
     return NextResponse.json({ received: true, noteId: note.id });
