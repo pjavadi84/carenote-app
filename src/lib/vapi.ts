@@ -86,7 +86,7 @@ export function buildAssistantOverrides(params: {
   // the body of these fields are stripped. See src/lib/redaction.ts.
   const overrides: {
     variableValues: Record<string, string>;
-    transcriber?: { provider: "deepgram"; keyterm: string[] };
+    transcriber?: { provider: "deepgram"; model: "nova-3"; keyterm: string[] };
   } = {
     variableValues: {
       caregiver_name: caregiverName,
@@ -111,10 +111,16 @@ export function buildAssistantOverrides(params: {
   };
 
   // Per-call keyterms boost recognition for resident name + current meds.
-  // Applies only when the Vapi assistant uses Deepgram Nova 3 (current).
+  // Vapi only accepts `keyterm` on Deepgram Nova 3 / Flux, so we pin the
+  // model in the override — otherwise Vapi 400s on dashboards configured
+  // for a different Deepgram model.
   const cleaned = (keyterms || []).filter((k) => k && k.trim().length > 0);
   if (cleaned.length > 0) {
-    overrides.transcriber = { provider: "deepgram", keyterm: cleaned };
+    overrides.transcriber = {
+      provider: "deepgram",
+      model: "nova-3",
+      keyterm: cleaned,
+    };
   }
 
   return overrides;

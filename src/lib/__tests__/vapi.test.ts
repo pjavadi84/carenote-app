@@ -77,6 +77,7 @@ describe("vapi", () => {
       });
 
       expect(result.transcriber?.provider).toBe("deepgram");
+      expect(result.transcriber?.model).toBe("nova-3");
       expect(result.transcriber?.keyterm).toEqual(["雅婷", "metformin"]);
     });
 
