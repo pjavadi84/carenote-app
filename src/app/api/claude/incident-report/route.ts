@@ -4,6 +4,10 @@ import { callClaude, parseJsonResponse } from "@/lib/claude";
 import { redactPhiText } from "@/lib/redaction";
 import { getResidentContext } from "@/lib/i18n/locale";
 import {
+  classifyMandatoryReporting,
+  deadlineAt,
+} from "@/lib/incidents/mandatory-reporting";
+import {
   INCIDENT_REPORT_SYSTEM_PROMPT,
   buildIncidentReportUserPrompt,
   type IncidentReportOutput,
@@ -71,6 +75,38 @@ export async function POST(request: NextRequest) {
     });
 
     const report = parseJsonResponse<IncidentReportOutput>(raw);
+    const severity = determineSeverity(report);
+
+    // F4 #6 — classify whether this incident triggers Taiwan statutory
+    // mandatory reporting. The classifier short-circuits to required=false
+    // for non-pdpa_tw orgs, so this is a no-op for US/EU rows.
+    const { data: orgRow } = await supabase
+      .from("organizations")
+      .select("regulatory_region")
+      .eq("id", note.organization_id)
+      .single();
+    const region =
+      (orgRow as { regulatory_region: string | null } | null)
+        ?.regulatory_region ?? null;
+
+    const aiFlag = report.notifications_needed?.licensing_agency;
+    const classification = classifyMandatoryReporting(
+      {
+        incidentType: report.incident_type,
+        severity,
+        aiFlaggedLicensingAgency:
+          typeof aiFlag === "boolean"
+            ? aiFlag
+            : typeof aiFlag === "string"
+              ? aiFlag.toLowerCase() === "true"
+              : false,
+        description: report.description,
+      },
+      region
+    );
+
+    const createdAtIso = new Date().toISOString();
+    const deadlineIso = deadlineAt(classification, createdAtIso);
 
     // Create incident report record
     const { data: incidentReport, error } = await supabase
@@ -81,7 +117,11 @@ export async function POST(request: NextRequest) {
         resident_id: note.resident_id,
         report_text: JSON.stringify(report),
         incident_type: report.incident_type,
-        severity: determineSeverity(report),
+        severity,
+        mandatory_report_required: classification.required,
+        mandatory_report_authority: classification.authority,
+        mandatory_report_deadline_at: deadlineIso,
+        mandatory_report_legal_basis: classification.legalBasis,
       })
       .select()
       .single();

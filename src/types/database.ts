@@ -208,6 +208,15 @@ export type Database = {
           follow_up_date: string | null
           id: string
           incident_type: string
+          mandatory_report_authority: string | null
+          mandatory_report_deadline_at: string | null
+          mandatory_report_legal_basis: string | null
+          mandatory_report_method: string | null
+          mandatory_report_notes: string | null
+          mandatory_report_reference: string | null
+          mandatory_report_required: boolean | null
+          mandatory_report_submitted_at: string | null
+          mandatory_report_submitted_by: string | null
           manager_notes: string | null
           note_id: string
           organization_id: string
@@ -226,6 +235,15 @@ export type Database = {
           follow_up_date?: string | null
           id?: string
           incident_type: string
+          mandatory_report_authority?: string | null
+          mandatory_report_deadline_at?: string | null
+          mandatory_report_legal_basis?: string | null
+          mandatory_report_method?: string | null
+          mandatory_report_notes?: string | null
+          mandatory_report_reference?: string | null
+          mandatory_report_required?: boolean | null
+          mandatory_report_submitted_at?: string | null
+          mandatory_report_submitted_by?: string | null
           manager_notes?: string | null
           note_id: string
           organization_id: string
@@ -244,6 +262,15 @@ export type Database = {
           follow_up_date?: string | null
           id?: string
           incident_type?: string
+          mandatory_report_authority?: string | null
+          mandatory_report_deadline_at?: string | null
+          mandatory_report_legal_basis?: string | null
+          mandatory_report_method?: string | null
+          mandatory_report_notes?: string | null
+          mandatory_report_reference?: string | null
+          mandatory_report_required?: boolean | null
+          mandatory_report_submitted_at?: string | null
+          mandatory_report_submitted_by?: string | null
           manager_notes?: string | null
           note_id?: string
           organization_id?: string
