@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { callClaude, parseJsonResponse } from "@/lib/claude";
+import { redactPhiText } from "@/lib/redaction";
 import {
   INCIDENT_REPORT_SYSTEM_PROMPT,
   buildIncidentReportUserPrompt,
@@ -55,10 +56,12 @@ export async function POST(request: NextRequest) {
       userPrompt: buildIncidentReportUserPrompt({
         residentFirstName: resident.first_name,
         residentLastName: resident.last_name,
-        conditions: resident.conditions,
+        conditions: resident.conditions
+          ? redactPhiText(resident.conditions)
+          : null,
         timestamp: note.created_at,
         caregiverName: (author as { full_name: string } | null)?.full_name || "Unknown",
-        rawInput: note.raw_input,
+        rawInput: redactPhiText(note.raw_input),
       }),
       maxTokens: 1500,
     });

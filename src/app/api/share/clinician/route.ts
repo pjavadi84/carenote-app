@@ -8,7 +8,7 @@ import {
   filterSectionsForClinician,
   serializeSectionsForPrompt,
 } from "@/lib/structured-output";
-import { getEffectiveStructuredOutput } from "@/lib/notes/effective-output";
+import { getEffectiveStructuredOutputForLlm } from "@/lib/notes/effective-output";
 import { logAudit } from "@/lib/audit";
 import { checkQuotaAndIncrement } from "@/lib/quota";
 import { sendClinicianPortalLink } from "@/lib/resend";
@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
     email_reply_to: string | null;
   } | null;
 
-  // Notes in scope. We pull both columns and let `getEffectiveStructuredOutput`
+  // Notes in scope. We pull both columns and let `getEffectiveStructuredOutputForLlm`
   // pick — caregiver corrections via `edited_output` must reach the surgeon.
   let notesQuery = supabase
     .from("notes")
@@ -250,7 +250,7 @@ export async function POST(request: NextRequest) {
   // Phase 4 and will require an explicit admin action + audit row.
   const filteredNotes = notes
     .map((n) => {
-      const effective = getEffectiveStructuredOutput(n);
+      const effective = getEffectiveStructuredOutputForLlm(n);
       if (!effective) return null;
       const parsed = parseStructuredOutput(effective);
       if (!parsed) return null;

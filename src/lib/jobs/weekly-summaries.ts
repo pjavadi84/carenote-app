@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { callClaude, parseJsonResponse } from "@/lib/claude";
-import { getEffectiveStructuredOutput } from "@/lib/notes/effective-output";
+import { getEffectiveStructuredOutputForLlm } from "@/lib/notes/effective-output";
 import {
   hasActivePdpaConsent,
   pdpaConsentRequired,
@@ -132,7 +132,7 @@ export async function runWeeklySummaries(
               created_at: n.created_at,
               author_name: authorMap.get(n.author_id) || "Staff",
               shift: n.shift,
-              structured_output: getEffectiveStructuredOutput(n) ?? "",
+              structured_output: getEffectiveStructuredOutputForLlm(n) ?? "",
             })),
           }),
           maxTokens: 1500,

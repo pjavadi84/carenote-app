@@ -11,7 +11,7 @@ import {
   filterSectionsForFamily,
   serializeSectionsForPrompt,
 } from "@/lib/structured-output";
-import { getEffectiveStructuredOutput } from "@/lib/notes/effective-output";
+import { getEffectiveStructuredOutputForLlm } from "@/lib/notes/effective-output";
 import {
   hasActivePdpaConsent,
   pdpaConsentRequired,
@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
   // or sensitive_restricted never reach family-facing prompts.
   const filteredNotes = notes
     .map((n) => {
-      const effective = getEffectiveStructuredOutput(n);
+      const effective = getEffectiveStructuredOutputForLlm(n);
       if (!effective) return null;
       const parsed = parseStructuredOutput(effective);
       if (!parsed) return null;

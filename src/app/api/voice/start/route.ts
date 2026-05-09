@@ -4,7 +4,7 @@ import { buildAssistantOverrides } from "@/lib/vapi";
 import { checkQuotaAndIncrement } from "@/lib/quota";
 import { logAudit } from "@/lib/audit";
 import { getCaregiverLocale, getResidentContext } from "@/lib/i18n/locale";
-import { getEffectiveStructuredOutput } from "@/lib/notes/effective-output";
+import { getEffectiveStructuredOutputForLlm } from "@/lib/notes/effective-output";
 import {
   hasActivePdpaConsent,
   hasCaregiverPdpaConsent,
@@ -31,7 +31,7 @@ function extractSummary(structuredOutput: string | null): string | null {
 function formatRecentNotes(rows: NoteSummaryRow[]): string {
   const lines = rows
     .map((row) => {
-      const summary = extractSummary(getEffectiveStructuredOutput(row));
+      const summary = extractSummary(getEffectiveStructuredOutputForLlm(row));
       if (!summary) return null;
       const date = row.created_at.slice(0, 10);
       return `${date}: ${summary}`;
@@ -44,7 +44,7 @@ function formatRecentIncidents(rows: NoteSummaryRow[]): string {
   const lines = rows
     .filter((r) => r.flagged_as_incident)
     .map((row) => {
-      const summary = extractSummary(getEffectiveStructuredOutput(row));
+      const summary = extractSummary(getEffectiveStructuredOutputForLlm(row));
       const date = row.created_at.slice(0, 10);
       return summary
         ? `${date}: ${summary}`

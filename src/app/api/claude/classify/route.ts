@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { callClaude, parseJsonResponse } from "@/lib/claude";
 import { checkQuotaAndIncrement } from "@/lib/quota";
+import { redactPhiText } from "@/lib/redaction";
 import {
   INCIDENT_CLASSIFY_SYSTEM_PROMPT,
   INCIDENT_CLASSIFY_MODEL,
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
     const raw = await callClaude({
       model: INCIDENT_CLASSIFY_MODEL,
       systemPrompt: INCIDENT_CLASSIFY_SYSTEM_PROMPT,
-      userPrompt: buildIncidentClassifyUserPrompt(rawInput),
+      userPrompt: buildIncidentClassifyUserPrompt(redactPhiText(rawInput)),
       maxTokens: 100,
     });
 

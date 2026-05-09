@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyVapiWebhook, type VapiWebhookEvent } from "@/lib/vapi";
 import { callClaude, parseJsonResponse } from "@/lib/claude";
+import { redactPhiText } from "@/lib/redaction";
 import { incrementUsage } from "@/lib/quota";
 import { getResidentContext } from "@/lib/i18n/locale";
 import { structureNote } from "@/lib/services/structure-note";
@@ -57,10 +58,12 @@ async function runVoiceSanity(
   transcript: string
 ): Promise<VoiceSanityOutput | null> {
   try {
+    // Redact at the LLM boundary — the raw transcript stays in
+    // voice_transcripts as the source of truth.
     const raw = await callClaude({
       model: VOICE_SANITY_MODEL,
       systemPrompt: VOICE_SANITY_SYSTEM_PROMPT,
-      userPrompt: buildVoiceSanityUserPrompt(transcript),
+      userPrompt: buildVoiceSanityUserPrompt(redactPhiText(transcript)),
       maxTokens: 400,
     });
     const parsed = parseJsonResponse<VoiceSanityOutput>(raw);
