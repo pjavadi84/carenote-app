@@ -7,6 +7,7 @@ import {
   keysForScope,
   policyForRecipient,
   rateLimitDecision,
+  redactBundle,
   validateExportRequest,
   type ExportRecipientType,
   type ExportRequestParams,
@@ -84,8 +85,9 @@ export async function POST(
       { status: 400 }
     );
   }
-  const { reason, recipientType, scope, recipientName } =
+  const { reason, recipientType, scope, recipientName, redactIdentifiers } =
     body as ExportRequestParams;
+  const redactRequested = redactIdentifiers === true;
 
   // Daily rate limit: count completed exports in the last 24h for this
   // org, regardless of which resident, regardless of which admin.
@@ -215,6 +217,17 @@ export async function POST(
   };
   const scoped = applyScope(fullBundle, scope as ExportScope);
 
+  // Identifier redaction is applied AFTER scope filtering so that a
+  // demographics_only redacted export still excludes notes / incidents.
+  // Stats are reported on the meta block (counts only — never the
+  // sensitive text itself).
+  const redactionResult = redactRequested
+    ? redactBundle(scoped as Record<string, unknown>)
+    : null;
+  const finalBundle = (redactionResult?.bundle ?? scoped) as Partial<
+    Record<string, unknown>
+  >;
+
   const payload = {
     meta: {
       exported_at: new Date().toISOString(),
@@ -230,6 +243,8 @@ export async function POST(
       recipient_name: recipientName ?? null,
       scope,
       legal_basis: policy.disclosureLegalBasis,
+      redacted: redactRequested,
+      redaction_stats: redactionResult?.stats ?? null,
       note:
         "This export represents the resident's record in Kinroster as of " +
         "the export timestamp. Any records added after that time are not " +
@@ -247,7 +262,7 @@ export async function POST(
           "are the unedited source of truth.",
       },
     },
-    ...scoped,
+    ...finalBundle,
   };
 
   // Compute byte count for the audit row so reviewers can see at a
@@ -256,12 +271,17 @@ export async function POST(
   const byteCount = new TextEncoder().encode(serialized).length;
 
   // categories_shared is the actual list of top-level keys in this
-  // export — driven by the chosen scope.
-  const sharedKeys = Object.keys(scoped);
+  // export — driven by the chosen scope. When the export was redacted,
+  // append the "redacted" sentinel so the disclosure ledger captures
+  // that identifiers were stripped.
+  const sharedKeys = Object.keys(finalBundle);
+  const disclosureCategories = redactRequested
+    ? [...sharedKeys, "redacted"]
+    : sharedKeys;
 
   // Source note IDs (only when notes are in scope).
-  const noteIds: string[] = Array.isArray(scoped.notes)
-    ? (scoped.notes as Array<{ id: string }>).map((n) => n.id)
+  const noteIds: string[] = Array.isArray(finalBundle.notes)
+    ? (finalBundle.notes as Array<{ id: string }>).map((n) => n.id)
     : [];
 
   await supabase.from("disclosure_events").insert({
@@ -271,7 +291,7 @@ export async function POST(
     recipient_type: policy.disclosureRecipientType,
     recipient_id: null,
     legal_basis: policy.disclosureLegalBasis,
-    categories_shared: sharedKeys,
+    categories_shared: disclosureCategories,
     source_note_ids: noteIds,
     delivery_method: "pdf_export",
   });
@@ -292,13 +312,15 @@ export async function POST(
       categories_shared: sharedKeys,
       byte_count: byteCount,
       remaining_today: limit.remaining - 1,
+      redacted: redactRequested,
+      redaction_stats: redactionResult?.stats ?? null,
     },
   });
 
   const filename =
     `kinroster-resident-${residentRow.last_name}-${residentRow.first_name}-${new Date()
       .toISOString()
-      .slice(0, 10)}-${scope}.json`
+      .slice(0, 10)}-${scope}${redactRequested ? "-redacted" : ""}.json`
       .toLowerCase()
       .replace(/[^a-z0-9.-]/g, "-");
 
