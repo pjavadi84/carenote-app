@@ -12,9 +12,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Undo2, Trash2, Download } from "lucide-react";
+import { Undo2, Trash2 } from "lucide-react";
+import { ExportDialog } from "@/components/data-requests/export-dialog";
 
-export function DeletionActions({ residentId }: { residentId: string }) {
+export function DeletionActions({
+  residentId,
+  residentDisplay,
+}: {
+  residentId: string;
+  residentDisplay: string;
+}) {
   const router = useRouter();
   const [purgeOpen, setPurgeOpen] = useState(false);
   const [reason, setReason] = useState("");
@@ -66,16 +73,10 @@ export function DeletionActions({ residentId }: { residentId: string }) {
 
   return (
     <div className="flex items-center gap-1 flex-wrap">
-      <a
-        href={`/api/residents/${residentId}/export`}
-        className="inline-flex"
-        download
-      >
-        <Button variant="outline" size="sm">
-          <Download className="mr-1 h-3 w-3" />
-          Export JSON
-        </Button>
-      </a>
+      <ExportDialog
+        residentId={residentId}
+        residentDisplay={residentDisplay}
+      />
 
       <Button
         variant="outline"

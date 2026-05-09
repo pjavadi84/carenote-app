@@ -52,7 +52,7 @@ export function ResidentDeleteControls({
             </p>
           </div>
         </div>
-        <DeletionActions residentId={residentId} />
+        <DeletionActions residentId={residentId} residentDisplay={residentName} />
       </div>
     );
   }

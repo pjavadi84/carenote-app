@@ -98,7 +98,10 @@ export default async function DataRequestsPage() {
                         </span>
                       </p>
                     </div>
-                    <DeletionActions residentId={r.id} />
+                    <DeletionActions
+                      residentId={r.id}
+                      residentDisplay={`${r.first_name} ${r.last_name}`}
+                    />
                   </div>
                 </CardContent>
               </Card>
