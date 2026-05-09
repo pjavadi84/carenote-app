@@ -22,26 +22,33 @@
  *     postal-format regexes will still slip through.
  *   - We do not redact phone numbers because care notes legitimately reference
  *     contact patterns ("daughter called at 11am").
- *   - We do not redact medical record numbers / NHI IDs yet — that's a
- *     follow-up once we have real samples to calibrate against.
+ *   - The 12-digit `id12` pattern catches both Vietnamese CCCD and Taiwan
+ *     NHI card serials — they're indistinguishable from text alone, so we
+ *     emit a jurisdiction-neutral `[ID_REDACTED]` token rather than guess.
  */
 
 export interface RedactionStats {
   rocId: number;
-  cccd: number;
+  /** Generic 12-digit national-ID redaction. Covers Vietnamese CCCD and
+   *  Taiwan NHI card serials. */
+  id12: number;
   nik: number;
   dob: number;
-  street: number;
+  /** Street / postal address (US-style or Taiwan-style). */
+  address: number;
   ssn: number;
 }
 
 const PATTERNS = {
   // Taiwan ROC ID: one letter (region) + 1 or 2 (gender) + 8 digits.
+  // Doubles as Taiwan NHI personal identifier on health-insurance forms.
   rocId: /\b[A-Z][12]\d{8}\b/g,
-  // Vietnamese CCCD (Citizen ID): 12 digits, often spaced as 3-3-3-3 or solid.
-  // Conservative: only solid 12-digit runs to avoid stripping medication
-  // dosages or year-mass-counts that happen to be 12 digits.
-  cccd: /\b\d{12}\b/g,
+  // 12-digit ID: Vietnamese CCCD (Citizen ID) and Taiwan NHI card serial
+  // are both 12 digits with no internal structure that distinguishes them
+  // from text alone. Conservative: only solid 12-digit runs, to avoid
+  // stripping medication dosages or year-mass-counts that happen to be
+  // 12 digits.
+  id12: /\b\d{12}\b/g,
   // Indonesian NIK: 16 digits.
   nik: /\b\d{16}\b/g,
   // Full DOB in ISO or US/EU forms. We replace with the year only (then a
@@ -54,10 +61,22 @@ const PATTERNS = {
   // expect SSNs in care notes; they sometimes appear in pasted forms).
   ssn: /\b\d{3}-\d{2}-\d{4}\b/g,
   // US-style street address line: number + street name + street type
-  // (St / Ave / Rd / Blvd / Ln / Dr / Way). Permissive on street name
-  // (any word characters and spaces).
-  street:
+  // (St / Ave / Rd / Blvd / Ln / Dr / Way). Permissive on street name.
+  streetUs:
     /\b\d{1,6}\s+[A-Za-z0-9.\-' ]{2,40}\s+(St|Street|Ave|Avenue|Rd|Road|Blvd|Boulevard|Ln|Lane|Dr|Drive|Way|Ct|Court|Pl|Place)\b/g,
+  // Taiwan full address: optional 3-6 digit postal code + city/county +
+  // district/township + road/street + optional 段 (section) + optional
+  // 巷 (lane) and/or 弄 (alley) + mandatory 號 (number) + optional 樓
+  // (floor) / 之X (sub-unit). Anchored on 號 to avoid capturing bare city
+  // references like "她住在台北市". Section numerals can be Chinese (五段),
+  // Arabic (5段), or full-width (５段).
+  taiwanAddressFull:
+    /(?:\d{3,6}\s*)?[一-鿿]{2,4}[縣市][一-鿿]{1,8}[區鄉鎮市][一-鿿]{1,12}(?:路|街|大道|大街)(?:(?:[一二三四五六七八九十]+|[\d０-９]+)段)?(?:[\d０-９]+巷)?(?:[\d０-９]+弄)?[\d０-９]+號(?:[\d０-９]+樓)?(?:之[\d０-９]+)?/gu,
+  // Partial Taiwan address (no city/district preamble): road/street + 號.
+  // More aggressive — will sometimes catch incidental references like
+  // 巧克力街3號 in fiction, but that's the cost of conservative-redaction.
+  taiwanAddressShort:
+    /[一-鿿]{1,12}(?:路|街|大道|大街)(?:(?:[一二三四五六七八九十]+|[\d０-９]+)段)?(?:[\d０-９]+巷)?(?:[\d０-９]+弄)?[\d０-９]+號(?:[\d０-９]+樓)?(?:之[\d０-９]+)?/gu,
 };
 
 /**
@@ -86,20 +105,35 @@ export function redactPhi(text: string): { text: string; stats: RedactionStats }
   if (!text) {
     return {
       text,
-      stats: { rocId: 0, cccd: 0, nik: 0, dob: 0, street: 0, ssn: 0 },
+      stats: { rocId: 0, id12: 0, nik: 0, dob: 0, address: 0, ssn: 0 },
     };
   }
 
   const stats: RedactionStats = {
     rocId: 0,
-    cccd: 0,
+    id12: 0,
     nik: 0,
     dob: 0,
-    street: 0,
+    address: 0,
     ssn: 0,
   };
 
   let out = text;
+
+  // Address patterns BEFORE numeric IDs so digits inside an address
+  // (e.g., 號242巷15弄8號) don't get pre-redacted as a 12-digit ID.
+  out = out.replace(PATTERNS.taiwanAddressFull, () => {
+    stats.address += 1;
+    return "[ADDRESS_REDACTED]";
+  });
+  out = out.replace(PATTERNS.taiwanAddressShort, () => {
+    stats.address += 1;
+    return "[ADDRESS_REDACTED]";
+  });
+  out = out.replace(PATTERNS.streetUs, () => {
+    stats.address += 1;
+    return "[ADDRESS_REDACTED]";
+  });
 
   out = out.replace(PATTERNS.rocId, () => {
     stats.rocId += 1;
@@ -111,16 +145,16 @@ export function redactPhi(text: string): { text: string; stats: RedactionStats }
     return "[SSN_REDACTED]";
   });
 
-  // Indonesian NIK BEFORE Vietnamese CCCD because NIK is longer (16 vs 12)
+  // Indonesian NIK BEFORE 12-digit IDs because NIK is longer (16 vs 12)
   // and we want the longer match to win.
   out = out.replace(PATTERNS.nik, () => {
     stats.nik += 1;
     return "[NIK_REDACTED]";
   });
 
-  out = out.replace(PATTERNS.cccd, () => {
-    stats.cccd += 1;
-    return "[CCCD_REDACTED]";
+  out = out.replace(PATTERNS.id12, () => {
+    stats.id12 += 1;
+    return "[ID_REDACTED]";
   });
 
   out = out.replace(PATTERNS.dobIso, (match) => {
@@ -132,11 +166,6 @@ export function redactPhi(text: string): { text: string; stats: RedactionStats }
   out = out.replace(PATTERNS.dobSlash, (_match, _m, _d, year) => {
     stats.dob += 1;
     return yearToBand(year);
-  });
-
-  out = out.replace(PATTERNS.street, () => {
-    stats.street += 1;
-    return "[ADDRESS_REDACTED]";
   });
 
   return { text: out, stats };
@@ -157,10 +186,10 @@ export function redactPhiText(text: string): string {
 export function hasRedactions(stats: RedactionStats): boolean {
   return (
     stats.rocId > 0 ||
-    stats.cccd > 0 ||
+    stats.id12 > 0 ||
     stats.nik > 0 ||
     stats.dob > 0 ||
-    stats.street > 0 ||
+    stats.address > 0 ||
     stats.ssn > 0
   );
 }

@@ -3,6 +3,10 @@ import { requireAdmin } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import { FamilyUpdateEditor } from "@/components/family/family-update-editor";
 import type { Resident, FamilyContact } from "@/types/database";
+import {
+  buildFamilyDisclosureFooter,
+  localeForRegulatoryRegion,
+} from "@/lib/family/disclosure-footer";
 
 export default async function NewFamilyUpdatePage({
   params,
@@ -31,6 +35,25 @@ export default async function NewFamilyUpdatePage({
 
   const contacts = (contactsData ?? []) as FamilyContact[];
 
+  // Pre-render the exact disclosure footer that will be auto-appended at
+  // send time, so the admin sees what the family will receive before they
+  // approve. Locale follows the org's regulatory_region.
+  const { data: orgData } = await supabase
+    .from("organizations")
+    .select("regulatory_region, email_reply_to")
+    .eq("id", user.organization_id)
+    .single();
+
+  const typedOrg = orgData as
+    | { regulatory_region: string | null; email_reply_to: string | null }
+    | null;
+
+  const disclosurePreview = buildFamilyDisclosureFooter({
+    clinicianName: user.full_name,
+    replyTo: typedOrg?.email_reply_to || "noreply@kinroster.com",
+    locale: localeForRegulatoryRegion(typedOrg?.regulatory_region),
+  });
+
   if (contacts.length === 0) {
     return (
       <div className="px-4 py-6">
@@ -55,6 +78,7 @@ export default async function NewFamilyUpdatePage({
         residentId={residentId}
         organizationId={user.organization_id}
         contacts={contacts}
+        disclosurePreview={disclosurePreview}
       />
     </div>
   );
