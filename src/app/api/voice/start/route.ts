@@ -5,6 +5,10 @@ import { checkQuotaAndIncrement } from "@/lib/quota";
 import { logAudit } from "@/lib/audit";
 import { getCaregiverLocale, getResidentContext } from "@/lib/i18n/locale";
 import { getEffectiveStructuredOutput } from "@/lib/notes/effective-output";
+import {
+  hasActivePdpaConsent,
+  pdpaConsentRequired,
+} from "@/lib/pdpa/active-consent";
 
 interface NoteSummaryRow {
   created_at: string;
@@ -107,6 +111,35 @@ export async function POST(request: NextRequest) {
 
   if (!resident) {
     return NextResponse.json({ error: "Resident not found" }, { status: 404 });
+  }
+
+  // PDPA gate. Independent of the per-call recording consent above:
+  // recordingConsentAccepted attests "the caregiver acknowledged the call
+  // is recorded"; this gate attests "the resident has on-file PDPA
+  // consent to have their data processed at all." Off by default;
+  // organizations.settings.pdpa_consent_required = true flips it on.
+  const { data: orgSettingsRow } = await supabase
+    .from("organizations")
+    .select("settings")
+    .eq("id", appUser.organization_id)
+    .single();
+  if (
+    pdpaConsentRequired(
+      (orgSettingsRow as { settings: Record<string, unknown> | null } | null)
+        ?.settings
+    )
+  ) {
+    const consented = await hasActivePdpaConsent(supabase, resident.id);
+    if (!consented) {
+      return NextResponse.json(
+        {
+          error:
+            "PDPA consent missing. Capture a resident PDPA consent record before starting voice intake for this resident.",
+          code: "pdpa_consent_required",
+        },
+        { status: 403 }
+      );
+    }
   }
 
   const { data: session, error: insertError } = await supabase

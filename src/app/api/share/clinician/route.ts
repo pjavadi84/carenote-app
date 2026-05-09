@@ -13,6 +13,10 @@ import { logAudit } from "@/lib/audit";
 import { checkQuotaAndIncrement } from "@/lib/quota";
 import { sendClinicianPortalLink } from "@/lib/resend";
 import {
+  hasActivePdpaConsent,
+  pdpaConsentRequired,
+} from "@/lib/pdpa/active-consent";
+import {
   CLINICIAN_SUMMARY_SYSTEM_PROMPT,
   buildClinicianSummaryUserPrompt,
   type ClinicianSummaryOutput,
@@ -103,6 +107,35 @@ export async function POST(request: NextRequest) {
 
   if (!typedResident) {
     return NextResponse.json({ error: "Resident not found" }, { status: 404 });
+  }
+
+  // PDPA gate (opt-in via organizations.settings.pdpa_consent_required).
+  // Sharing PHI with an external clinician is a textbook "third-party
+  // disclosure" requiring lawful basis under PDPA — block if the
+  // resident has no active consent on file when the org has flipped
+  // strict mode on.
+  const { data: orgSettingsRow } = await supabase
+    .from("organizations")
+    .select("settings")
+    .eq("id", typedResident.organization_id)
+    .single();
+  if (
+    pdpaConsentRequired(
+      (orgSettingsRow as { settings: Record<string, unknown> | null } | null)
+        ?.settings
+    )
+  ) {
+    const consented = await hasActivePdpaConsent(supabase, residentId);
+    if (!consented) {
+      return NextResponse.json(
+        {
+          error:
+            "PDPA consent missing. Capture a resident PDPA consent record before creating a clinician share for this resident.",
+          code: "pdpa_consent_required",
+        },
+        { status: 403 }
+      );
+    }
   }
 
   // Clinician must belong to same org AND be assigned to this resident.
