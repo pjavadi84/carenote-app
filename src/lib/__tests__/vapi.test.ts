@@ -76,6 +76,7 @@ describe("vapi", () => {
         keyterms: ["雅婷", "metformin", "  ", ""],
       });
 
+      expect(result.transcriber?.provider).toBe("deepgram");
       expect(result.transcriber?.keyterms).toEqual(["雅婷", "metformin"]);
     });
   });
