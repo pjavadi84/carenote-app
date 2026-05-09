@@ -11,6 +11,7 @@ import {
   filterSectionsForFamily,
   serializeSectionsForPrompt,
 } from "@/lib/structured-output";
+import { getEffectiveStructuredOutput } from "@/lib/notes/effective-output";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -79,10 +80,13 @@ export async function POST(request: NextRequest) {
   };
   const typedOrg = org as { name: string } | null;
 
-  // Fetch notes in date range
+  // Fetch notes in date range. Pull both columns so caregiver edits via
+  // `edited_output` reach the family-facing prompt rather than the original
+  // AI draft. NOTE: a family update sent before a late edit is not re-sent
+  // — versioned/notification on edit is a separate, deferred change.
   const { data: notesData } = await supabase
     .from("notes")
-    .select("id, created_at, structured_output, author_id")
+    .select("id, created_at, structured_output, edited_output, author_id")
     .eq("resident_id", residentId)
     .eq("is_structured", true)
     .gte("created_at", dateRangeStart)
@@ -92,7 +96,8 @@ export async function POST(request: NextRequest) {
   const notes = (notesData ?? []) as Array<{
     id: string;
     created_at: string;
-    structured_output: string;
+    structured_output: string | null;
+    edited_output: string | null;
     author_id: string;
   }>;
 
@@ -122,7 +127,9 @@ export async function POST(request: NextRequest) {
   // or sensitive_restricted never reach family-facing prompts.
   const filteredNotes = notes
     .map((n) => {
-      const parsed = parseStructuredOutput(n.structured_output);
+      const effective = getEffectiveStructuredOutput(n);
+      if (!effective) return null;
+      const parsed = parseStructuredOutput(effective);
       if (!parsed) return null;
       const allowed = filterSectionsForFamily(parsed.sections, {
         involved_in_care: typedContact.involved_in_care,

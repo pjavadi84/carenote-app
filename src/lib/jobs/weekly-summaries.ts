@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { callClaude, parseJsonResponse } from "@/lib/claude";
+import { getEffectiveStructuredOutput } from "@/lib/notes/effective-output";
 import {
   WEEKLY_SUMMARY_SYSTEM_PROMPT,
   buildWeeklySummaryUserPrompt,
@@ -77,7 +78,9 @@ export async function runWeeklySummaries(
       // should use the clinician share flow with explicit override.
       const { data: notes } = await supabase
         .from("notes")
-        .select("id, created_at, structured_output, author_id, shift")
+        .select(
+          "id, created_at, structured_output, edited_output, author_id, shift"
+        )
         .eq("resident_id", resident.id)
         .eq("is_structured", true)
         .eq("sensitive_flag", false)
@@ -112,7 +115,7 @@ export async function runWeeklySummaries(
               created_at: n.created_at,
               author_name: authorMap.get(n.author_id) || "Staff",
               shift: n.shift,
-              structured_output: n.structured_output,
+              structured_output: getEffectiveStructuredOutput(n) ?? "",
             })),
           }),
           maxTokens: 1500,

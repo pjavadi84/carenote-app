@@ -131,6 +131,8 @@ export const mockNote: Note = {
   is_structured: true,
   structuring_error: null,
   last_structuring_attempt_at: "2026-04-05T12:00:00Z",
+  structuring_attempts: 1,
+  structuring_giving_up: false,
   is_edited: false,
   edited_output: null,
   shift: "morning",

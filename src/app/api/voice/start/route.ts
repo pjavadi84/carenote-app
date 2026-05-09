@@ -4,10 +4,12 @@ import { buildAssistantOverrides } from "@/lib/vapi";
 import { checkQuotaAndIncrement } from "@/lib/quota";
 import { logAudit } from "@/lib/audit";
 import { getCaregiverLocale, getResidentContext } from "@/lib/i18n/locale";
+import { getEffectiveStructuredOutput } from "@/lib/notes/effective-output";
 
 interface NoteSummaryRow {
   created_at: string;
   structured_output: string | null;
+  edited_output: string | null;
   flagged_as_incident: boolean | null;
 }
 
@@ -24,7 +26,7 @@ function extractSummary(structuredOutput: string | null): string | null {
 function formatRecentNotes(rows: NoteSummaryRow[]): string {
   const lines = rows
     .map((row) => {
-      const summary = extractSummary(row.structured_output);
+      const summary = extractSummary(getEffectiveStructuredOutput(row));
       if (!summary) return null;
       const date = row.created_at.slice(0, 10);
       return `${date}: ${summary}`;
@@ -37,7 +39,7 @@ function formatRecentIncidents(rows: NoteSummaryRow[]): string {
   const lines = rows
     .filter((r) => r.flagged_as_incident)
     .map((row) => {
-      const summary = extractSummary(row.structured_output);
+      const summary = extractSummary(getEffectiveStructuredOutput(row));
       const date = row.created_at.slice(0, 10);
       return summary
         ? `${date}: ${summary}`
@@ -160,14 +162,14 @@ export async function POST(request: NextRequest) {
   const [recentNotesRes, recentIncidentsRes] = await Promise.all([
     supabase
       .from("notes")
-      .select("created_at, structured_output, flagged_as_incident")
+      .select("created_at, structured_output, edited_output, flagged_as_incident")
       .eq("resident_id", resident.id)
       .eq("organization_id", appUser.organization_id)
       .order("created_at", { ascending: false })
       .limit(5),
     supabase
       .from("notes")
-      .select("created_at, structured_output, flagged_as_incident")
+      .select("created_at, structured_output, edited_output, flagged_as_incident")
       .eq("resident_id", resident.id)
       .eq("organization_id", appUser.organization_id)
       .eq("flagged_as_incident", true)
