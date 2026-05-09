@@ -203,4 +203,13 @@ export const mockIncidentReport: IncidentReport = {
   follow_up_date: "2026-04-07",
   created_at: "2026-04-05T12:00:00Z",
   updated_at: "2026-04-05T12:00:00Z",
+  mandatory_report_required: null,
+  mandatory_report_authority: null,
+  mandatory_report_deadline_at: null,
+  mandatory_report_legal_basis: null,
+  mandatory_report_submitted_at: null,
+  mandatory_report_submitted_by: null,
+  mandatory_report_method: null,
+  mandatory_report_reference: null,
+  mandatory_report_notes: null,
 };

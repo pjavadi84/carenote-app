@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { IncidentActions } from "@/components/incidents/incident-actions";
+import { MandatoryReportSection } from "@/components/incidents/mandatory-report-section";
 import {
   AIDisclosure,
   AI_DISCLOSURE_INCIDENT,
@@ -41,9 +42,30 @@ export default async function IncidentDetailPage({
     family_notified_at: string | null;
     follow_up_date: string | null;
     created_at: string;
+    mandatory_report_required: boolean | null;
+    mandatory_report_authority: string | null;
+    mandatory_report_deadline_at: string | null;
+    mandatory_report_legal_basis: string | null;
+    mandatory_report_submitted_at: string | null;
+    mandatory_report_submitted_by: string | null;
+    mandatory_report_method: string | null;
+    mandatory_report_reference: string | null;
+    mandatory_report_notes: string | null;
     residents: { first_name: string; last_name: string } | null;
     notes: { raw_input: string; created_at: string } | null;
   };
+
+  // Resolve submitter name in a separate query — Supabase's type
+  // inference doesn't auto-discover the FK relation here.
+  let submitterName: string | null = null;
+  if (incident.mandatory_report_submitted_by) {
+    const { data: sub } = await supabase
+      .from("users")
+      .select("full_name")
+      .eq("id", incident.mandatory_report_submitted_by)
+      .single();
+    submitterName = (sub as { full_name: string } | null)?.full_name ?? null;
+  }
 
   const reportData = parseReport(incident.report_text);
 
@@ -148,6 +170,16 @@ export default async function IncidentDetailPage({
           )}
         </div>
       )}
+
+      <Separator className="my-4" />
+
+      {/* Statutory mandatory-reporting tracker — appears only when the
+          classifier flagged this incident at create time. */}
+      <MandatoryReportSection
+        incidentId={incident.id}
+        row={incident}
+        submitterName={submitterName}
+      />
 
       <Separator className="my-4" />
 
