@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { sendFamilyEmail } from "@/lib/resend";
 import { logAudit } from "@/lib/audit";
+import {
+  appendFamilyDisclosureFooter,
+  buildFamilyDisclosureFooter,
+  localeForRegulatoryRegion,
+} from "@/lib/family/disclosure-footer";
 
 type LegalBasis =
   | "personal_representative"
@@ -41,6 +46,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // The send is the regulatory accountability anchor — only an admin (or
+  // compliance_admin acting in that capacity) may approve a family-facing
+  // AI-drafted message. F4 #5 from the May 2026 Taiwan due-diligence brief.
+  const { data: appUser } = await supabase
+    .from("users")
+    .select("organization_id, role, full_name")
+    .eq("id", user.id)
+    .single();
+
+  const typedAppUser = appUser as
+    | { organization_id: string; role: string; full_name: string }
+    | null;
+
+  if (!typedAppUser) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+  if (
+    typedAppUser.role !== "admin" &&
+    typedAppUser.role !== "compliance_admin"
+  ) {
+    return NextResponse.json(
+      { error: "Only admins can approve and send family updates" },
+      { status: 403 }
+    );
+  }
+
   const { communicationId } = await request.json();
 
   if (!communicationId) {
@@ -77,8 +108,16 @@ export async function POST(request: NextRequest) {
     source_note_ids: string[] | null;
     subject: string;
     body: string;
+    status: string;
     family_contacts: ContactRow | null;
   };
+
+  if (typedComm.status === "sent") {
+    return NextResponse.json(
+      { error: "This update has already been sent." },
+      { status: 409 }
+    );
+  }
 
   if (!typedComm.family_contacts) {
     return NextResponse.json(
@@ -96,10 +135,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Fetch org settings (incl. feature flag) + from/reply-to metadata.
+  // Fetch org settings (incl. feature flag) + from/reply-to metadata +
+  // regulatory_region (drives footer locale).
   const { data: org } = await supabase
     .from("organizations")
-    .select("name, email_from_name, email_reply_to, settings")
+    .select(
+      "name, email_from_name, email_reply_to, settings, regulatory_region"
+    )
     .eq("id", typedComm.organization_id)
     .single();
 
@@ -108,6 +150,7 @@ export async function POST(request: NextRequest) {
     email_from_name: string | null;
     email_reply_to: string | null;
     settings: Record<string, unknown> | null;
+    regulatory_region: string | null;
   } | null;
 
   const familyAuthRequired =
@@ -143,20 +186,36 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  const replyTo = typedOrg?.email_reply_to || "noreply@kinroster.com";
+
+  // Compose + freeze the disclosure footer at send time. Stored separately
+  // from the body so the audit log can later re-render exactly what the
+  // family received and who approved it.
+  const footer = buildFamilyDisclosureFooter({
+    clinicianName: typedAppUser.full_name,
+    replyTo,
+    locale: localeForRegulatoryRegion(typedOrg?.regulatory_region),
+  });
+  const bodyWithFooter = appendFamilyDisclosureFooter(typedComm.body, footer);
+
   try {
     await sendFamilyEmail({
       to: contact.email,
       fromName: typedOrg?.email_from_name || typedOrg?.name || "Kinroster",
-      replyTo: typedOrg?.email_reply_to || "noreply@kinroster.com",
+      replyTo,
       subject: typedComm.subject,
-      body: typedComm.body,
+      body: bodyWithFooter,
     });
 
+    const nowIso = new Date().toISOString();
     await supabase
       .from("family_communications")
       .update({
         status: "sent",
-        sent_at: new Date().toISOString(),
+        sent_at: nowIso,
+        approved_by: user.id,
+        approved_at: nowIso,
+        disclosure_footer: footer,
       })
       .eq("id", communicationId);
 
@@ -190,6 +249,11 @@ export async function POST(request: NextRequest) {
         communication_id: typedComm.id,
         legal_basis: legalBasis ?? "patient_agreement",
         enforcement_on: familyAuthRequired,
+        approver_id: user.id,
+        approver_name: typedAppUser.full_name,
+        disclosure_footer_locale: localeForRegulatoryRegion(
+          typedOrg?.regulatory_region
+        ),
       },
     });
 

@@ -36,10 +36,13 @@ export type Database = {
     Tables: {
       family_communications: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           body: string
           created_at: string
           date_range_end: string
           date_range_start: string
+          disclosure_footer: string | null
           generated_by: string
           id: string
           organization_id: string
@@ -51,10 +54,13 @@ export type Database = {
           subject: string
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           body: string
           created_at?: string
           date_range_end: string
           date_range_start: string
+          disclosure_footer?: string | null
           generated_by: string
           id?: string
           organization_id: string
@@ -66,10 +72,13 @@ export type Database = {
           subject: string
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           body?: string
           created_at?: string
           date_range_end?: string
           date_range_start?: string
+          disclosure_footer?: string | null
           generated_by?: string
           id?: string
           organization_id?: string

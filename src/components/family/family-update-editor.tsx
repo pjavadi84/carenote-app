@@ -66,10 +66,15 @@ export function FamilyUpdateEditor({
   residentId,
   organizationId,
   contacts,
+  disclosurePreview,
 }: {
   residentId: string;
   organizationId: string;
   contacts: FamilyContact[];
+  /** Read-only preview of the disclosure footer the send route will append.
+   *  Computed server-side from the current admin's name + the org's
+   *  regulatory_region; not part of the editable body. */
+  disclosurePreview: string;
 }) {
   const [step, setStep] = useState<Step>("configure");
   const [contactId, setContactId] = useState(contacts[0]?.id || "");
@@ -352,6 +357,16 @@ export function FamilyUpdateEditor({
         />
       </div>
 
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">
+          Auto-appended disclosure (you cannot edit this — it identifies you
+          as the reviewer)
+        </Label>
+        <pre className="rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap font-sans">
+          {disclosurePreview}
+        </pre>
+      </div>
+
       <div className="flex gap-2">
         <Button
           onClick={handleSend}
@@ -361,12 +376,12 @@ export function FamilyUpdateEditor({
           {step === "sending" ? (
             <>
               <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-              Sending...
+              Approving and sending...
             </>
           ) : (
             <>
               <Send className="mr-1 h-4 w-4" />
-              Send Email
+              Approve and send
             </>
           )}
         </Button>

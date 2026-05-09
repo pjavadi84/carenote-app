@@ -87,6 +87,9 @@ describe("Database types", () => {
       date_range_end: "2026-04-05",
       status: "draft",
       sent_at: null,
+      approved_by: null,
+      approved_at: null,
+      disclosure_footer: null,
       created_at: "2026-04-05T12:00:00Z",
     };
     expect(["draft", "sent", "failed"]).toContain(comm.status);
