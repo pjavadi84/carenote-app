@@ -9,6 +9,7 @@ import {
   serializeSectionsForPrompt,
 } from "@/lib/structured-output";
 import { getEffectiveStructuredOutputForLlm } from "@/lib/notes/effective-output";
+import { getResidentContext } from "@/lib/i18n/locale";
 import { logAudit } from "@/lib/audit";
 import { checkQuotaAndIncrement } from "@/lib/quota";
 import { sendClinicianPortalLink } from "@/lib/resend";
@@ -141,7 +142,7 @@ export async function POST(request: NextRequest) {
   // Clinician must belong to same org AND be assigned to this resident.
   const { data: clinician } = await supabase
     .from("clinicians")
-    .select("id, full_name, email, specialty")
+    .select("id, full_name, email, specialty, clinical_language")
     .eq("id", clinicianId)
     .eq("organization_id", typedResident.organization_id)
     .eq("is_active", true)
@@ -152,6 +153,7 @@ export async function POST(request: NextRequest) {
     full_name: string;
     email: string;
     specialty: string | null;
+    clinical_language: string | null;
   } | null;
 
   if (!typedClinician) {
@@ -180,7 +182,9 @@ export async function POST(request: NextRequest) {
   // Organization (for facility name, email-from)
   const { data: org } = await supabase
     .from("organizations")
-    .select("name, email_from_name, email_reply_to")
+    .select(
+      "name, email_from_name, email_reply_to, default_clinical_language"
+    )
     .eq("id", typedResident.organization_id)
     .single();
 
@@ -188,6 +192,7 @@ export async function POST(request: NextRequest) {
     name: string;
     email_from_name: string | null;
     email_reply_to: string | null;
+    default_clinical_language: string | null;
   } | null;
 
   // Notes in scope. We pull both columns and let `getEffectiveStructuredOutputForLlm`
@@ -277,6 +282,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Resolve output language for the clinical narrative: clinician's own
+  // clinical_language wins (some clinicians may prefer English even at a
+  // zh-TW org), then org default_clinical_language, then resident locale.
+  const clinicianLocale = await getResidentContext(residentId);
+  const clinicalLanguage =
+    typedClinician.clinical_language ||
+    typedOrg?.default_clinical_language ||
+    clinicianLocale.output_language;
+
   // Claude: generate clinician summary
   let summary: ClinicianSummaryOutput;
   try {
@@ -298,6 +312,8 @@ export async function POST(request: NextRequest) {
           author_name: authorMap.get(n.author_id) || "Staff",
           structured_output: n.structured_output,
         })),
+        localeContext: clinicianLocale,
+        clinicalLanguage,
       }),
       maxTokens: 1500,
     });

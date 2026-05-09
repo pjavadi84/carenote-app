@@ -12,6 +12,7 @@ import {
   serializeSectionsForPrompt,
 } from "@/lib/structured-output";
 import { getEffectiveStructuredOutputForLlm } from "@/lib/notes/effective-output";
+import { getResidentContext } from "@/lib/i18n/locale";
 import {
   hasActivePdpaConsent,
   pdpaConsentRequired,
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
   const { data: contact } = await supabase
     .from("family_contacts")
     .select(
-      "name, relationship, involved_in_care, personal_representative, authorization_on_file, authorization_scope"
+      "name, relationship, involved_in_care, personal_representative, authorization_on_file, authorization_scope, preferred_communication_language"
     )
     .eq("id", contactId)
     .single();
@@ -104,6 +105,7 @@ export async function POST(request: NextRequest) {
     personal_representative: boolean;
     authorization_on_file: boolean;
     authorization_scope: string[];
+    preferred_communication_language: string | null;
   };
 
   // Fetch notes in date range. Pull both columns so caregiver edits via
@@ -183,6 +185,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Resolve output language: family contact's preferred channel wins, then
+  // fall back to the resident's locale context, then to org default. The
+  // family update is the one surface where the family member's preference
+  // matters more than the resident's — they're who reads the email.
+  const localeContext = await getResidentContext(residentId);
+  const outputLanguage =
+    typedContact.preferred_communication_language ||
+    localeContext.output_language;
+
   try {
     const raw = await callClaude({
       systemPrompt: FAMILY_UPDATE_SYSTEM_PROMPT,
@@ -199,6 +210,8 @@ export async function POST(request: NextRequest) {
           author_name: authorMap.get(n.author_id) || "Staff",
           structured_output: n.structured_output,
         })),
+        localeContext,
+        familyLanguage: outputLanguage,
       }),
       maxTokens: 1024,
     });
