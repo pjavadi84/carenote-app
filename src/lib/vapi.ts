@@ -86,7 +86,7 @@ export function buildAssistantOverrides(params: {
   // the body of these fields are stripped. See src/lib/redaction.ts.
   const overrides: {
     variableValues: Record<string, string>;
-    transcriber?: { provider: "deepgram"; keyterms: string[] };
+    transcriber?: { provider: "deepgram"; keyterm: string[] };
   } = {
     variableValues: {
       caregiver_name: caregiverName,
@@ -114,7 +114,7 @@ export function buildAssistantOverrides(params: {
   // Applies only when the Vapi assistant uses Deepgram Nova 3 (current).
   const cleaned = (keyterms || []).filter((k) => k && k.trim().length > 0);
   if (cleaned.length > 0) {
-    overrides.transcriber = { provider: "deepgram", keyterms: cleaned };
+    overrides.transcriber = { provider: "deepgram", keyterm: cleaned };
   }
 
   return overrides;
