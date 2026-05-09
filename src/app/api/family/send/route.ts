@@ -7,6 +7,11 @@ import {
   buildFamilyDisclosureFooter,
   localeForRegulatoryRegion,
 } from "@/lib/family/disclosure-footer";
+import {
+  hasActiveFamilyContactConsent,
+  hasActivePdpaConsent,
+  pdpaConsentRequired,
+} from "@/lib/pdpa/active-consent";
 
 type LegalBasis =
   | "personal_representative"
@@ -155,6 +160,33 @@ export async function POST(request: NextRequest) {
 
   const familyAuthRequired =
     typedOrg?.settings?.family_auth_required === true;
+
+  // PDPA gate. Two consents are required at send time when the org is
+  // gated: (1) the resident's PHI processing consent, and (2) the family
+  // contact's own consent for the org to email them. Both are checked.
+  if (pdpaConsentRequired(typedOrg?.settings)) {
+    const [residentOk, contactOk] = await Promise.all([
+      hasActivePdpaConsent(supabase, typedComm.resident_id),
+      hasActiveFamilyContactConsent(
+        supabase,
+        typedComm.recipient_contact_id
+      ),
+    ]);
+    if (!residentOk || !contactOk) {
+      return NextResponse.json(
+        {
+          error:
+            "PDPA consent missing. Both the resident's PHI consent and the family contact's email consent must be on file before sending.",
+          code: "pdpa_consent_required",
+          missing: {
+            resident: !residentOk,
+            family_contact: !contactOk,
+          },
+        },
+        { status: 403 }
+      );
+    }
+  }
 
   const legalBasis = deriveLegalBasis(contact);
 

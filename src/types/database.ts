@@ -1395,6 +1395,95 @@ export type Database = {
           },
         ]
       }
+      family_contact_pdpa_consents: {
+        Row: {
+          attorney_reviewed: boolean
+          captured_by_user_id: string
+          consent_text_locale: string
+          consent_text_snapshot: string
+          consent_text_version: string
+          consented_at: string
+          consenting_party_name: string
+          created_at: string
+          family_contact_id: string
+          id: string
+          ip_address: string | null
+          organization_id: string
+          signed_typed_name: string
+          user_agent: string | null
+          withdrawal_reason: string | null
+          withdrawn_at: string | null
+          withdrawn_by_user_id: string | null
+        }
+        Insert: {
+          attorney_reviewed?: boolean
+          captured_by_user_id: string
+          consent_text_locale: string
+          consent_text_snapshot: string
+          consent_text_version: string
+          consented_at?: string
+          consenting_party_name: string
+          created_at?: string
+          family_contact_id: string
+          id?: string
+          ip_address?: string | null
+          organization_id: string
+          signed_typed_name: string
+          user_agent?: string | null
+          withdrawal_reason?: string | null
+          withdrawn_at?: string | null
+          withdrawn_by_user_id?: string | null
+        }
+        Update: {
+          attorney_reviewed?: boolean
+          captured_by_user_id?: string
+          consent_text_locale?: string
+          consent_text_snapshot?: string
+          consent_text_version?: string
+          consented_at?: string
+          consenting_party_name?: string
+          created_at?: string
+          family_contact_id?: string
+          id?: string
+          ip_address?: string | null
+          organization_id?: string
+          signed_typed_name?: string
+          user_agent?: string | null
+          withdrawal_reason?: string | null
+          withdrawn_at?: string | null
+          withdrawn_by_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "family_contact_pdpa_consents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "family_contact_pdpa_consents_family_contact_id_fkey"
+            columns: ["family_contact_id"]
+            isOneToOne: false
+            referencedRelation: "family_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "family_contact_pdpa_consents_captured_by_user_id_fkey"
+            columns: ["captured_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "family_contact_pdpa_consents_withdrawn_by_user_id_fkey"
+            columns: ["withdrawn_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resident_pdpa_consents: {
         Row: {
           attorney_reviewed: boolean

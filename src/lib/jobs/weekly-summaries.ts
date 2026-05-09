@@ -2,6 +2,10 @@ import { createClient } from "@supabase/supabase-js";
 import { callClaude, parseJsonResponse } from "@/lib/claude";
 import { getEffectiveStructuredOutput } from "@/lib/notes/effective-output";
 import {
+  hasActivePdpaConsent,
+  pdpaConsentRequired,
+} from "@/lib/pdpa/active-consent";
+import {
   WEEKLY_SUMMARY_SYSTEM_PROMPT,
   buildWeeklySummaryUserPrompt,
   type WeeklySummaryOutput,
@@ -33,7 +37,7 @@ export async function runWeeklySummaries(
 
   const { data: orgs } = await supabase
     .from("organizations")
-    .select("id, name, timezone")
+    .select("id, name, timezone, settings")
     .in("subscription_status", ["trial", "active"]);
 
   if (!orgs || orgs.length === 0) {
@@ -62,7 +66,20 @@ export async function runWeeklySummaries(
 
     if (!residents) continue;
 
+    // PDPA gate (org opt-in). When on, skip residents with no active
+    // consent record — running an AI weekly summary on someone whose
+    // representative hasn't consented is exactly what the gate exists
+    // to prevent.
+    const orgPdpaGated = pdpaConsentRequired(
+      (org as { settings: Record<string, unknown> | null }).settings
+    );
+
     for (const resident of residents) {
+      if (orgPdpaGated) {
+        const consented = await hasActivePdpaConsent(supabase, resident.id);
+        if (!consented) continue;
+      }
+
       const { data: existing } = await supabase
         .from("weekly_summaries")
         .select("id")
