@@ -30,7 +30,9 @@ export type AuditEventType =
   | "permission_change"
   | "export"
   | "failed_access"
-  | "note_retry_structuring";
+  | "note_retry_structuring"
+  | "pdpa_consent_capture"
+  | "pdpa_consent_withdraw";
 
 export type AuditResult = "success" | "denied" | "error";
 
@@ -42,7 +44,8 @@ export type AuditObjectType =
   | "resident"
   | "user"
   | "notes_sensitive_access"
-  | "authorization";
+  | "authorization"
+  | "pdpa_consent";
 
 interface LogAuditParams {
   organizationId: string;

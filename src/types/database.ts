@@ -1395,6 +1395,104 @@ export type Database = {
           },
         ]
       }
+      resident_pdpa_consents: {
+        Row: {
+          attorney_reviewed: boolean
+          captured_by_user_id: string
+          consent_text_locale: string
+          consent_text_snapshot: string
+          consent_text_version: string
+          consented_at: string
+          consenting_party_id_last4: string | null
+          consenting_party_name: string
+          consenting_party_relationship: string | null
+          consenting_party_type: string
+          created_at: string
+          id: string
+          ip_address: string | null
+          organization_id: string
+          resident_id: string
+          signed_typed_name: string
+          user_agent: string | null
+          withdrawal_reason: string | null
+          withdrawn_at: string | null
+          withdrawn_by_user_id: string | null
+        }
+        Insert: {
+          attorney_reviewed?: boolean
+          captured_by_user_id: string
+          consent_text_locale: string
+          consent_text_snapshot: string
+          consent_text_version: string
+          consented_at?: string
+          consenting_party_id_last4?: string | null
+          consenting_party_name: string
+          consenting_party_relationship?: string | null
+          consenting_party_type: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          organization_id: string
+          resident_id: string
+          signed_typed_name: string
+          user_agent?: string | null
+          withdrawal_reason?: string | null
+          withdrawn_at?: string | null
+          withdrawn_by_user_id?: string | null
+        }
+        Update: {
+          attorney_reviewed?: boolean
+          captured_by_user_id?: string
+          consent_text_locale?: string
+          consent_text_snapshot?: string
+          consent_text_version?: string
+          consented_at?: string
+          consenting_party_id_last4?: string | null
+          consenting_party_name?: string
+          consenting_party_relationship?: string | null
+          consenting_party_type?: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          organization_id?: string
+          resident_id?: string
+          signed_typed_name?: string
+          user_agent?: string | null
+          withdrawal_reason?: string | null
+          withdrawn_at?: string | null
+          withdrawn_by_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resident_pdpa_consents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_pdpa_consents_resident_id_fkey"
+            columns: ["resident_id"]
+            isOneToOne: false
+            referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_pdpa_consents_captured_by_user_id_fkey"
+            columns: ["captured_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "resident_pdpa_consents_withdrawn_by_user_id_fkey"
+            columns: ["withdrawn_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1557,4 +1655,5 @@ export type FamilyCommunication = Database["public"]["Tables"]["family_communica
 export type WeeklySummary = Database["public"]["Tables"]["weekly_summaries"]["Row"];
 export type VoiceSession = Database["public"]["Tables"]["voice_sessions"]["Row"];
 export type VoiceTranscript = Database["public"]["Tables"]["voice_transcripts"]["Row"];
+export type ResidentPdpaConsent = Database["public"]["Tables"]["resident_pdpa_consents"]["Row"];
 

@@ -12,6 +12,10 @@ import {
   serializeSectionsForPrompt,
 } from "@/lib/structured-output";
 import { getEffectiveStructuredOutput } from "@/lib/notes/effective-output";
+import {
+  hasActivePdpaConsent,
+  pdpaConsentRequired,
+} from "@/lib/pdpa/active-consent";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -50,12 +54,35 @@ export async function POST(request: NextRequest) {
     organization_id: string;
   };
 
-  // Fetch org
+  // Fetch org (name + PDPA-gating setting).
   const { data: org } = await supabase
     .from("organizations")
-    .select("name")
+    .select("name, settings")
     .eq("id", typedResident.organization_id)
     .single();
+
+  const typedOrg = org as
+    | { name: string; settings: Record<string, unknown> | null }
+    | null;
+
+  // PDPA gate: if the org opted into hard-blocking on missing consent
+  // (settings.pdpa_consent_required), refuse to generate any AI-drafted
+  // family update for residents without an active consent record. Off by
+  // default so existing orgs aren't broken; Taiwan orgs flip it on once
+  // they're capturing consent for every resident.
+  if (pdpaConsentRequired(typedOrg?.settings)) {
+    const consented = await hasActivePdpaConsent(supabase, residentId);
+    if (!consented) {
+      return NextResponse.json(
+        {
+          error:
+            "PDPA consent missing. Capture a resident_pdpa_consents record before generating family updates for this resident.",
+          code: "pdpa_consent_required",
+        },
+        { status: 403 }
+      );
+    }
+  }
 
   // Fetch contact with the authorization fields needed for Phase 3 filtering.
   const { data: contact } = await supabase
@@ -78,7 +105,6 @@ export async function POST(request: NextRequest) {
     authorization_on_file: boolean;
     authorization_scope: string[];
   };
-  const typedOrg = org as { name: string } | null;
 
   // Fetch notes in date range. Pull both columns so caregiver edits via
   // `edited_output` reach the family-facing prompt rather than the original
