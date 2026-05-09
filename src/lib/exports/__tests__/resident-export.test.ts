@@ -5,6 +5,7 @@ import {
   keysForScope,
   policyForRecipient,
   rateLimitDecision,
+  redactBundle,
   validateExportRequest,
 } from "@/lib/exports/resident-export";
 
@@ -88,6 +89,31 @@ describe("validateExportRequest", () => {
       })
     ).toEqual({ ok: true });
   });
+
+  it("accepts redactIdentifiers true / false / undefined", () => {
+    for (const v of [true, false, undefined]) {
+      expect(
+        validateExportRequest({
+          reason: "Family requested portability",
+          recipientType: "patient_or_guardian",
+          scope: "full",
+          redactIdentifiers: v,
+        }).ok
+      ).toBe(true);
+    }
+  });
+
+  it("rejects non-boolean redactIdentifiers", () => {
+    const v = validateExportRequest({
+      reason: "Family requested portability",
+      recipientType: "patient_or_guardian",
+      scope: "full",
+      // @ts-expect-error testing invalid input
+      redactIdentifiers: "yes",
+    });
+    expect(v.ok).toBe(false);
+    expect(v.error).toMatch(/redactIdentifiers/);
+  });
 });
 
 describe("keysForScope + applyScope", () => {
@@ -154,6 +180,164 @@ describe("rateLimitDecision", () => {
     expect(rateLimitDecision(EXPORT_DAILY_LIMIT + 5)).toEqual({
       allowed: false,
       remaining: 0,
+    });
+  });
+});
+
+describe("redactBundle", () => {
+  it("strips identifiers from notes.raw_input but preserves clinical content", () => {
+    const bundle = {
+      resident: {
+        id: "r-1",
+        first_name: "Eleanor",
+        last_name: "Hsu",
+        date_of_birth: "1942-03-22",
+        conditions: "Mild dementia",
+      },
+      notes: [
+        {
+          id: "n-1",
+          raw_input:
+            "Eleanor's ID is A123456789. She fell at 14:30 near the bathroom.",
+          structured_output: null,
+          metadata: { categories: ["safety_alerts"] },
+        },
+      ],
+    };
+
+    const { bundle: out, stats } = redactBundle(bundle);
+
+    const note = (out.notes as Array<{ raw_input: string }>)[0];
+    expect(note.raw_input).toContain("[ROC_ID_REDACTED]");
+    expect(note.raw_input).toContain("Eleanor"); // given name preserved
+    expect(note.raw_input).toContain("fell at 14:30"); // clinical fact preserved
+    expect(note.raw_input).toContain("bathroom");
+    expect(stats.rocId).toBe(1);
+  });
+
+  it("converts resident.date_of_birth from ISO date to a 5-year band", () => {
+    const { bundle: out, stats } = redactBundle({
+      resident: { id: "r-1", date_of_birth: "1942-03-22" },
+    });
+    expect((out.resident as { date_of_birth: string }).date_of_birth).toMatch(
+      /1940s/
+    );
+    expect(stats.dob).toBeGreaterThanOrEqual(1);
+  });
+
+  it("converts resident.lunar_calendar_dob if present", () => {
+    const { bundle: out } = redactBundle({
+      resident: { id: "r-1", lunar_calendar_dob: "1985-07-15" },
+    });
+    expect(
+      (out.resident as { lunar_calendar_dob: string }).lunar_calendar_dob
+    ).toMatch(/1980s/);
+  });
+
+  it("leaves null DOB columns alone", () => {
+    const { bundle: out } = redactBundle({
+      resident: { id: "r-1", date_of_birth: null, lunar_calendar_dob: null },
+    });
+    expect((out.resident as { date_of_birth: null }).date_of_birth).toBeNull();
+  });
+
+  it("redacts incident_reports.report_text", () => {
+    const { bundle: out, stats } = redactBundle({
+      incident_reports: [
+        {
+          id: "i-1",
+          report_text:
+            "Resident's NHI A187654321 — fall in dining room at 2026-03-15.",
+        },
+      ],
+    });
+    const ir = (out.incident_reports as Array<{ report_text: string }>)[0];
+    expect(ir.report_text).toContain("[ROC_ID_REDACTED]");
+    // Note: 2026-03-15 is an ISO date that the dob regex catches; it gets
+    // banded. That's acceptable — it's not a clinical fact, just timing
+    // metadata, and over-redaction is the design choice for this layer.
+    expect(stats.rocId).toBe(1);
+  });
+
+  it("redacts weekly_summaries summary_text + key_trends + concerns", () => {
+    const { bundle: out } = redactBundle({
+      weekly_summaries: [
+        {
+          id: "w-1",
+          summary_text:
+            "Mostly stable. ROC ID A123456789 referenced in chart.",
+          key_trends: ["Sleep improving", "Visited 100 Forbes Ave"],
+          concerns: [],
+        },
+      ],
+    });
+    const w = (
+      out.weekly_summaries as Array<{
+        summary_text: string;
+        key_trends: string[];
+      }>
+    )[0];
+    expect(w.summary_text).toContain("[ROC_ID_REDACTED]");
+    expect(w.key_trends[1]).toContain("[ADDRESS_REDACTED]");
+    expect(w.key_trends[0]).toBe("Sleep improving");
+  });
+
+  it("redacts voice_transcripts.text", () => {
+    const { bundle: out } = redactBundle({
+      voice_transcripts: [
+        { id: "vt-1", text: "Caregiver said the address is 100 Forbes Ave." },
+      ],
+    });
+    const t = (out.voice_transcripts as Array<{ text: string }>)[0];
+    expect(t.text).toContain("[ADDRESS_REDACTED]");
+  });
+
+  it("leaves family_contacts and disclosure_events untouched", () => {
+    const bundle = {
+      family_contacts: [
+        { id: "fc-1", name: "Sarah Hsu", email: "sarah@example.com" },
+      ],
+      disclosure_events: [
+        {
+          id: "d-1",
+          recipient_type: "family_contact",
+          legal_basis: "patient_agreement",
+        },
+      ],
+    };
+    const { bundle: out } = redactBundle(bundle);
+    expect(out.family_contacts).toEqual(bundle.family_contacts);
+    expect(out.disclosure_events).toEqual(bundle.disclosure_events);
+  });
+
+  it("returns aggregate stats summed across all rows", () => {
+    const { stats } = redactBundle({
+      notes: [
+        { id: "n-1", raw_input: "ID A111111111 noted." },
+        { id: "n-2", raw_input: "ID A222222222 also." },
+      ],
+      voice_transcripts: [
+        { id: "vt-1", text: "Lives at 100 Forbes Ave." },
+      ],
+    });
+    expect(stats.rocId).toBe(2);
+    expect(stats.address).toBe(1);
+  });
+
+  it("preserves bundles with no redactable content (zero stats)", () => {
+    const bundle = {
+      resident: { id: "r-1", first_name: "Eleanor", conditions: null },
+      notes: [{ id: "n-1", raw_input: "Calm morning, ate breakfast." }],
+    };
+    const { bundle: out, stats } = redactBundle(bundle);
+    expect(out).toEqual(bundle);
+    expect(stats).toEqual({
+      rocId: 0,
+      id12: 0,
+      nik: 0,
+      dob: 0,
+      address: 0,
+      ssn: 0,
     });
   });
 });

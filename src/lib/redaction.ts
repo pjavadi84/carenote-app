@@ -82,8 +82,12 @@ const PATTERNS = {
 /**
  * Round a year to a 5-year band so the resulting "age" is fuzzy enough to
  * not be uniquely identifying. 1942 → "early 1940s", 1985 → "mid 1980s".
+ *
+ * Exported for callers that hold a typed DATE column (e.g. residents.date_of_birth)
+ * rather than a free-text DOB embedded in a string — the redactPhi regex layer
+ * doesn't see those columns, so the export-redactor handles them explicitly.
  */
-function yearToBand(yearStr: string): string {
+export function yearToBand(yearStr: string): string {
   const y = parseInt(yearStr, 10);
   if (Number.isNaN(y)) return "[YEAR]";
   const decadeStart = Math.floor(y / 10) * 10;

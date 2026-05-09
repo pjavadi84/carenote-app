@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -96,12 +97,14 @@ export function ExportDialog({
   const [scope, setScope] = useState<Scope>("full");
   const [reason, setReason] = useState("");
   const [recipientName, setRecipientName] = useState("");
+  const [redactIdentifiers, setRedactIdentifiers] = useState(false);
 
   function reset() {
     setRecipientType("agency_internal");
     setScope("full");
     setReason("");
     setRecipientName("");
+    setRedactIdentifiers(false);
   }
 
   async function handleSubmit() {
@@ -119,6 +122,7 @@ export function ExportDialog({
           recipientType,
           scope,
           recipientName: recipientName.trim() || null,
+          redactIdentifiers,
         }),
       });
 
@@ -253,6 +257,27 @@ export function ExportDialog({
             <p className="text-xs text-muted-foreground">
               Minimum 10 characters. Stored verbatim on the audit row.
             </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="flex items-start gap-2 text-sm cursor-pointer">
+              <Checkbox
+                checked={redactIdentifiers}
+                onCheckedChange={(c) => setRedactIdentifiers(c === true)}
+                className="mt-0.5"
+              />
+              <span>
+                <span className="font-medium">
+                  Redact identifiers (PHI-safe export)
+                </span>
+                <span className="block text-xs text-muted-foreground font-normal">
+                  Strips ROC ID / NHI / SSN / CCCD / NIK and postal addresses
+                  from text fields, and replaces dates of birth with a 5-year
+                  band. Clinical observations are preserved verbatim. Use for
+                  billing, training, or non-clinical recipients.
+                </span>
+              </span>
+            </label>
           </div>
         </div>
 
