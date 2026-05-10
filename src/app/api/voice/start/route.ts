@@ -236,8 +236,12 @@ export async function POST(request: NextRequest) {
     ...conditionTokens,
   ].filter((s): s is string => Boolean(s));
 
-  // The Vapi assistant generates its own greeting from the system prompt +
-  // variables — we no longer hardcode an English firstMessage here.
+  // We force model-generated greeting so the assistant uses the
+  // system-prompt's language-specific templates (which interpolate
+  // {{resident_first_name}} etc.) instead of the static English
+  // firstMessage configured in the Vapi dashboard. The caregiver is
+  // already in the resident's portal — the assistant should NOT ask
+  // "which resident are you reporting on?".
   const assistantOverrides = {
     ...buildAssistantOverrides({
       caregiverName: appUser.full_name,
@@ -254,6 +258,8 @@ export async function POST(request: NextRequest) {
       recentIncidents: formatRecentIncidents(recentIncidents),
       keyterms,
     }),
+    firstMessageMode:
+      "assistant-speaks-first-with-model-generated-message" as const,
     metadata: { sessionId },
   };
 
