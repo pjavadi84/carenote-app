@@ -214,6 +214,94 @@ function buildEmailHtml(body: string, facilityName: string): string {
 </html>`;
 }
 
+interface SendFamilyContactConfirmationParams {
+  to: string;
+  contactName: string;
+  residentFirstName: string;
+  facilityName: string;
+  fromName: string;
+  replyTo: string;
+  confirmUrl: string;
+  expiresAt: Date;
+}
+
+// One-time confirmation email sent to a family contact after the facility
+// adds them as a recipient. The email contains no PHI beyond the resident's
+// first name (necessary so the recipient understands what they're being
+// asked to consent to). If the address is wrong, no PHI was disclosed; if
+// the recipient is the wrong person, they can ignore the email and the
+// facility will never send substantive updates to that address.
+export async function sendFamilyContactConfirmation({
+  to,
+  contactName,
+  residentFirstName,
+  facilityName,
+  fromName,
+  replyTo,
+  confirmUrl,
+  expiresAt,
+}: SendFamilyContactConfirmationParams): Promise<{ id: string }> {
+  if (!resend) {
+    throw new Error("Email sending is not configured (RESEND_API_KEY missing)");
+  }
+
+  const expiresDisplay = expiresAt.toLocaleString("en-US", {
+    dateStyle: "long",
+    timeStyle: "short",
+  });
+
+  const subject = `Confirm you'd like care updates about ${residentFirstName}`;
+  const html = buildFamilyContactConfirmationHtml({
+    contactName,
+    residentFirstName,
+    facilityName,
+    confirmUrl,
+    expiresDisplay,
+  });
+
+  const { data, error } = await resend.emails.send({
+    from: `${fromName} <updates@${process.env.RESEND_DOMAIN || "kinroster.com"}>`,
+    replyTo,
+    to,
+    subject,
+    html,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return { id: data!.id };
+}
+
+function buildFamilyContactConfirmationHtml(params: {
+  contactName: string;
+  residentFirstName: string;
+  facilityName: string;
+  confirmUrl: string;
+  expiresDisplay: string;
+}): string {
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1a1a1a; background: #ffffff;">
+  <div style="border-bottom: 2px solid #e5e5e5; padding-bottom: 16px; margin-bottom: 24px;">
+    <h2 style="margin: 0; font-size: 18px; color: #1a1a1a;">${params.facilityName}</h2>
+  </div>
+  <p style="margin: 0 0 16px 0; line-height: 1.6;">Hello ${params.contactName},</p>
+  <p style="margin: 0 0 16px 0; line-height: 1.6;">${params.facilityName} would like to send you periodic care updates about <strong>${params.residentFirstName}</strong>. Before any updates are sent, we need to confirm this is the right email address for you.</p>
+  <p style="margin: 24px 0;">
+    <a href="${params.confirmUrl}" style="background: #1a1a1a; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; display: inline-block; font-weight: 500;">Yes, send me updates</a>
+  </p>
+  <p style="margin: 0 0 16px 0; line-height: 1.6; font-size: 14px; color: #555;">This link expires on <strong>${params.expiresDisplay}</strong>.</p>
+  <div style="border-top: 1px solid #e5e5e5; padding-top: 16px; margin-top: 24px; font-size: 12px; color: #666;">
+    <p style="margin: 0 0 6px 0;">Sent by ${params.facilityName} using Kinroster, a documentation tool for care facilities.</p>
+    <p style="margin: 0;">If you weren't expecting this email, you can ignore it. No further messages will be sent to this address unless you click the link above.</p>
+  </div>
+</body>
+</html>`;
+}
+
 function buildPortalLinkHtml(params: {
   clinicianName: string;
   facilityName: string;

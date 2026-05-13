@@ -105,6 +105,7 @@ export const mockFamilyContact: FamilyContact = {
   confidential_communication_notes: null,
   preferred_communication_language: null,
   country_of_residence: null,
+  email_confirmed_at: "2026-01-10T00:00:00Z",
   created_at: "2026-01-10T00:00:00Z",
 };
 

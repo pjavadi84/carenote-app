@@ -131,6 +131,7 @@ export type Database = {
           country_of_residence: string | null
           created_at: string
           email: string | null
+          email_confirmed_at: string | null
           id: string
           involved_in_care: boolean
           is_primary: boolean
@@ -154,6 +155,7 @@ export type Database = {
           country_of_residence?: string | null
           created_at?: string
           email?: string | null
+          email_confirmed_at?: string | null
           id?: string
           involved_in_care?: boolean
           is_primary?: boolean
@@ -177,6 +179,7 @@ export type Database = {
           country_of_residence?: string | null
           created_at?: string
           email?: string | null
+          email_confirmed_at?: string | null
           id?: string
           involved_in_care?: boolean
           is_primary?: boolean
@@ -196,6 +199,70 @@ export type Database = {
             columns: ["resident_id"]
             isOneToOne: false
             referencedRelation: "residents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      family_contact_confirmation_tokens: {
+        Row: {
+          confirmed_at: string | null
+          created_at: string
+          created_by: string
+          email_at_send: string
+          expires_at: string
+          family_contact_id: string
+          id: string
+          organization_id: string
+          revoked_at: string | null
+          sent_at: string
+          token_hash: string
+        }
+        Insert: {
+          confirmed_at?: string | null
+          created_at?: string
+          created_by: string
+          email_at_send: string
+          expires_at: string
+          family_contact_id: string
+          id?: string
+          organization_id: string
+          revoked_at?: string | null
+          sent_at?: string
+          token_hash: string
+        }
+        Update: {
+          confirmed_at?: string | null
+          created_at?: string
+          created_by?: string
+          email_at_send?: string
+          expires_at?: string
+          family_contact_id?: string
+          id?: string
+          organization_id?: string
+          revoked_at?: string | null
+          sent_at?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "family_contact_confirmation_tokens_family_contact_id_fkey"
+            columns: ["family_contact_id"]
+            isOneToOne: false
+            referencedRelation: "family_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "family_contact_confirmation_tokens_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "family_contact_confirmation_tokens_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]

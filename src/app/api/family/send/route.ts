@@ -27,6 +27,7 @@ type ContactRow = {
   authorization_end_date: string | null;
   revoked_at: string | null;
   authorization_scope: string[];
+  email_confirmed_at: string | null;
 };
 
 function deriveLegalBasis(contact: ContactRow): LegalBasis | null {
@@ -92,7 +93,8 @@ export async function POST(request: NextRequest) {
       `*, family_contacts(
         email, name,
         involved_in_care, personal_representative, authorization_on_file,
-        authorization_end_date, revoked_at, authorization_scope
+        authorization_end_date, revoked_at, authorization_scope,
+        email_confirmed_at
       )`
     )
     .eq("id", communicationId)
@@ -137,6 +139,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: "Recipient has no email address" },
       { status: 400 }
+    );
+  }
+
+  // Email confirmation gate. Until the recipient has clicked the
+  // confirmation link sent at contact creation, the system refuses to
+  // disclose PHI. This prevents the "typo in email field → PHI delivered to
+  // the wrong gmail account" failure mode that happened in May 2026.
+  // Existing contacts created before migration 00025 were grandfathered
+  // (email_confirmed_at = created_at) so this gate doesn't break pilots.
+  if (!contact.email_confirmed_at) {
+    return NextResponse.json(
+      {
+        error:
+          "Recipient hasn't confirmed their email yet. Send (or re-send) the confirmation email and ask them to click the link before sending updates.",
+        code: "email_not_confirmed",
+      },
+      { status: 412 }
     );
   }
 

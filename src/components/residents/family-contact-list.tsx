@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Mail, Phone, Pencil, ShieldOff } from "lucide-react";
+import { Plus, Mail, Phone, Pencil, ShieldOff, MailCheck, Send } from "lucide-react";
 import { toast } from "sonner";
 import type { FamilyContact } from "@/types/database";
 import {
@@ -136,18 +136,61 @@ export function FamilyContactList({
   const [revokeSaving, setRevokeSaving] = useState(false);
 
   async function handleAdd(values: FamilyContactFormValues) {
-    const { error } = await supabase
+    const { data: inserted, error } = await supabase
       .from("family_contacts")
-      .insert(insertPayloadFromValues(values, residentId));
+      .insert(insertPayloadFromValues(values, residentId))
+      .select("id, email")
+      .single();
 
-    if (error) {
-      toast.error(error.message);
+    if (error || !inserted) {
+      toast.error(error?.message ?? "Could not add contact");
       return;
+    }
+
+    // Fire-and-forget: if the contact has an email, send a confirmation
+    // link. We don't block the UI on this — failures surface as a toast,
+    // but the contact still exists and an admin can re-send from the row.
+    if (inserted.email) {
+      void sendConfirmation(inserted.id, { initialSend: true });
     }
 
     toast.success("Contact added");
     setAddOpen(false);
     router.refresh();
+  }
+
+  async function sendConfirmation(
+    contactId: string,
+    opts: { initialSend?: boolean } = {}
+  ) {
+    try {
+      const res = await fetch(
+        `/api/family-contacts/${contactId}/send-confirmation`,
+        { method: "POST" }
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          details?: string;
+          error?: string;
+        };
+        toast.error(
+          body.details ||
+            body.error ||
+            "Could not send confirmation email"
+        );
+        return;
+      }
+      toast.success(
+        opts.initialSend
+          ? "Confirmation email sent to the contact"
+          : "Confirmation email re-sent"
+      );
+      router.refresh();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not send confirmation email"
+      );
+    }
   }
 
   async function handleUpdate(id: string, values: FamilyContactFormValues) {
@@ -288,6 +331,25 @@ export function FamilyContactList({
                         {contact.authorization_scope.length === 1 ? "y" : "ies"}
                       </Badge>
                     )}
+                    {contact.email && !contact.email_confirmed_at && (
+                      <Badge
+                        variant="outline"
+                        className="text-xs border-amber-500/60 text-amber-700 dark:text-amber-400"
+                        title="Recipient hasn't confirmed their email. Family updates are paused for this contact until they click the confirmation link."
+                      >
+                        Awaiting email confirmation
+                      </Badge>
+                    )}
+                    {contact.email && contact.email_confirmed_at && (
+                      <Badge
+                        variant="outline"
+                        className="text-xs border-green-500/40 text-green-700 dark:text-green-400"
+                        title={`Confirmed ${new Date(contact.email_confirmed_at).toLocaleDateString()}`}
+                      >
+                        <MailCheck className="h-3 w-3 mr-0.5" />
+                        Confirmed
+                      </Badge>
+                    )}
                   </div>
                   {isRevoked && auth.reason && (
                     <p className="text-xs text-muted-foreground mt-1">
@@ -305,6 +367,17 @@ export function FamilyContactList({
                     >
                       <Pencil className="h-3 w-3" />
                     </Button>
+                    {contact.email && !contact.email_confirmed_at && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => sendConfirmation(contact.id)}
+                        aria-label={`Re-send confirmation email to ${contact.name}`}
+                        title="Re-send confirmation email"
+                      >
+                        <Send className="h-3 w-3" />
+                      </Button>
+                    )}
                     {isRevoked ? (
                       <Button
                         variant="ghost"
