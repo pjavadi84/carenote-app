@@ -17,6 +17,7 @@ import {
   AIDisclosure,
   AI_DISCLOSURE_NOTE,
 } from "@/components/transparency/ai-disclosure";
+import { RetryStuckNoteButton } from "@/components/notes/retry-stuck-note-button";
 
 type OverCaptureWarning = {
   has_concerns: boolean;
@@ -59,9 +60,11 @@ export type NoteWithRelations = Note & {
 export function NoteTimeline({
   notes,
   hiddenSensitiveCount = 0,
+  canRetry = false,
 }: {
   notes: NoteWithRelations[];
   hiddenSensitiveCount?: number;
+  canRetry?: boolean;
 }) {
   return (
     <div className="space-y-3">
@@ -123,6 +126,9 @@ export function NoteTimeline({
                     <Badge variant="outline" className="text-xs">
                       Pending
                     </Badge>
+                  )}
+                  {!note.is_structured && canRetry && (
+                    <RetryStuckNoteButton noteId={note.id} />
                   )}
                 </div>
               </div>

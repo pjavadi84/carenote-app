@@ -269,6 +269,7 @@ export default async function ResidentDetailPage({
             hasMore={hasMoreNotes}
             hiddenSensitiveCount={hiddenSensitiveCount}
             filters={filters}
+            canRetry={isAdmin || user.role === "compliance_admin"}
           />
         )}
       </div>
