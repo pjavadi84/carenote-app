@@ -33,7 +33,9 @@ export type AuditEventType =
   | "note_retry_structuring"
   | "pdpa_consent_capture"
   | "pdpa_consent_withdraw"
-  | "mandatory_report_filed";
+  | "mandatory_report_filed"
+  | "family_contact_confirmation_sent"
+  | "family_contact_confirmed";
 
 export type AuditResult = "success" | "denied" | "error";
 
