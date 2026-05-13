@@ -211,7 +211,20 @@ export async function POST(request: NextRequest) {
     // with no demographic fields populated still produce identical English
     // output — buildCulturalRegisterBlock returns minimal/empty blocks when
     // fields are unset.
-    const localeContext = await getResidentContext(session.resident_id);
+    //
+    // Failure here must NOT bubble: if it does, the note row exists with
+    // raw_input but structuring never runs, leaving the note stuck "Pending"
+    // with no structuring_error to debug from. Treat any failure as "no
+    // locale context" and let structureNote proceed with English defaults.
+    let localeContext = null;
+    try {
+      localeContext = await getResidentContext(session.resident_id);
+    } catch (err) {
+      console.error(
+        "voice/webhook: getResidentContext failed, falling back to defaults",
+        { residentId: session.resident_id, error: err }
+      );
+    }
 
     // Structuring and voice-sanity run in parallel. Sanity is informational
     // and never blocks — if it fails we just omit the warning. Structuring

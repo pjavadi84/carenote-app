@@ -85,7 +85,10 @@ export default async function TodayPage({
         </div>
       ) : (
         <>
-          <NoteTimeline notes={notes as Parameters<typeof NoteTimeline>[0]["notes"]} />
+          <NoteTimeline
+            notes={notes as Parameters<typeof NoteTimeline>[0]["notes"]}
+            canRetry={user.role === "admin" || user.role === "compliance_admin"}
+          />
           {hasMore && (
             <div className="mt-4 flex flex-col items-center gap-2 rounded-lg border border-dashed p-4 text-center">
               <p className="text-sm text-muted-foreground">

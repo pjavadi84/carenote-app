@@ -26,12 +26,14 @@ export function NotesInfiniteList({
   hasMore: initialHasMore,
   hiddenSensitiveCount = 0,
   filters = {},
+  canRetry = false,
 }: {
   residentId: string;
   initialNotes: NoteWithRelations[];
   hasMore: boolean;
   hiddenSensitiveCount?: number;
   filters?: NotesQueryFilters;
+  canRetry?: boolean;
 }) {
   const [notes, setNotes] = useState(initialNotes);
   const [hasMore, setHasMore] = useState(initialHasMore);
@@ -71,6 +73,7 @@ export function NotesInfiniteList({
       <NoteTimeline
         notes={notes}
         hiddenSensitiveCount={hiddenSensitiveCount}
+        canRetry={canRetry}
       />
       {hasMore && (
         <div className="flex justify-center pt-2">
