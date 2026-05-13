@@ -37,6 +37,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# claude code (project-level settings.json + hooks are committed;
+# personal overrides, plans, and worktrees are not)
+.claude/settings.local.json
+.claude/worktrees/
+.claude/plans/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

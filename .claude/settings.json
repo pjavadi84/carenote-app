@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(pnpm typecheck *)",
+      "Bash(pnpm lint *)",
+      "Bash(pnpm test:unit *)",
+      "Bash(pnpm test *)",
+      "mcp__ccd_session_mgmt__search_session_transcripts"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/check-migration-drift.sh",
+            "timeout": 30,
+            "statusMessage": "Checking Supabase migration drift..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/pre-pr-checks.sh",
+            "timeout": 180,
+            "statusMessage": "Pre-PR checks..."
+          }
+        ]
+      }
+    ]
+  }
+}
