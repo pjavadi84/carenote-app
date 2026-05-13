@@ -370,40 +370,72 @@ export async function POST(request: NextRequest) {
 
   // Append-only disclosure audit. legal_basis is 'treatment' — coordination
   // with a treating physician, per HIPAA TPO.
-  await supabase.from("disclosure_events").insert({
-    organization_id: typedResident.organization_id,
-    resident_id: residentId,
-    actor_user_id: user.id,
-    recipient_type: "clinician",
-    recipient_id: clinicianId,
-    legal_basis: "treatment",
-    categories_shared: [
-      "key_observations",
-      ...(summary.safety_events.length > 0 ? ["safety_events"] : []),
-      ...(summary.medication_adherence ? ["medication_adherence"] : []),
-      ...(summary.cognitive_changes ? ["cognitive_changes"] : []),
-    ],
-    source_note_ids: filteredNotes.map((n) => n.id),
-    delivery_method: "magic_link_portal",
-    share_link_id: typedShareRow.id,
-    sensitive_override: includeSensitive,
-  });
+  //
+  // Defensive shape handling on the summary object: Claude is asked to return
+  // `safety_events: string[]`, `medication_adherence: string | null`, and
+  // `cognitive_changes: string | null`, but in practice can return a
+  // sparser-than-typed JSON (the field is omitted, returned as null instead
+  // of [], etc.). Reading `summary.safety_events.length` on such a response
+  // throws a TypeError that escapes the route's earlier try/catch (which
+  // wraps only the Claude call) and surfaces as an empty-body 500. Guard
+  // each access so a shape variation downgrades to "category absent" rather
+  // than crashing the share.
+  const safetyEvents = Array.isArray(summary.safety_events)
+    ? summary.safety_events
+    : [];
+  const categoriesShared = [
+    "key_observations",
+    ...(safetyEvents.length > 0 ? ["safety_events"] : []),
+    ...(summary.medication_adherence ? ["medication_adherence"] : []),
+    ...(summary.cognitive_changes ? ["cognitive_changes"] : []),
+  ];
 
-  await logAudit({
-    organizationId: typedResident.organization_id,
-    userId: user.id,
-    eventType: "share_create",
-    objectType: "share_link",
-    objectId: typedShareRow.id,
-    request,
-    metadata: {
-      recipient_type: "clinician",
-      clinician_id: clinicianId,
+  // The disclosure_events insert and audit log are append-only side effects;
+  // a row failure should not erase a successfully-created share link. Wrap
+  // them so any unexpected error (schema drift, constraint violation,
+  // network blip) is reported in the JSON response instead of escaping as
+  // an uncaught exception → empty 500.
+  try {
+    await supabase.from("disclosure_events").insert({
+      organization_id: typedResident.organization_id,
       resident_id: residentId,
+      actor_user_id: user.id,
+      recipient_type: "clinician",
+      recipient_id: clinicianId,
+      legal_basis: "treatment",
+      categories_shared: categoriesShared,
+      source_note_ids: filteredNotes.map((n) => n.id),
+      delivery_method: "magic_link_portal",
+      share_link_id: typedShareRow.id,
       sensitive_override: includeSensitive,
-      source_note_count: filteredNotes.length,
-    },
-  });
+    });
+
+    await logAudit({
+      organizationId: typedResident.organization_id,
+      userId: user.id,
+      eventType: "share_create",
+      objectType: "share_link",
+      objectId: typedShareRow.id,
+      request,
+      metadata: {
+        recipient_type: "clinician",
+        clinician_id: clinicianId,
+        resident_id: residentId,
+        sensitive_override: includeSensitive,
+        source_note_count: filteredNotes.length,
+      },
+    });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json(
+      {
+        error: "Share link created but disclosure logging failed",
+        share_link_id: typedShareRow.id,
+        details: message,
+      },
+      { status: 500 }
+    );
+  }
 
   // Portal URL
   const origin =
