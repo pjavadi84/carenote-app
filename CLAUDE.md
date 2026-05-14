@@ -30,15 +30,19 @@ AI-powered documentation tool for small elder-care providers (6-20 bed residenti
 - RLS must be enabled on every table with user data.
 
 ## Spec Documents
-Full product spec is in the sibling `kinroster-docs/` repo. Key references:
-- PRD: `05-PRODUCT-REQUIREMENTS.md` (features F1-F10)
-- Data Model: `08-DATA-MODEL.md`
-- Prompts: `09-PROMPT-ENGINEERING.md`
-- Compliance: `10-COMPLIANCE-AND-SECURITY.md`
-- Build Plan: `11-BUILD-PLAN.md`
+Docs are organised under `docs/` by category. See `docs/README.md` for the full index. Key references:
+- PRD: `docs/product/product-requirements.md` (features F1-F10)
+- User flows: `docs/product/user-flows.md`
+- Architecture: `docs/engineering/architecture.md`
+- Data Model: `docs/engineering/data-model.md`
+- Entity model + auth: `docs/engineering/entity-model-and-auth.md`
+- Prompts: `docs/engineering/prompt-engineering.md`
+- Build Plan: `docs/engineering/build-plan.md`
+- Compliance overview: `docs/compliance/compliance-and-security.md`
+- Compliance action tracker + gaps: `docs/compliance/compliance-action-tracker.md`, `docs/compliance/compliance-gaps.md`
 
 ## Implementation Roadmap
-- **HIPAA compliance roadmap:** `docs/HIPAA-ROADMAP.md` — 10-phase plan to make the app ready for real PHI. Phase 1 (clinician directory + secure sharing) is shipped. Read this before starting any phase, and before changing migrations, RLS, prompts, or sharing flows.
+- **HIPAA compliance roadmap:** `docs/compliance/hipaa-roadmap.md` — 10-phase plan to make the app ready for real PHI. Phase 1 (clinician directory + secure sharing) is shipped. Read this before starting any phase, and before changing migrations, RLS, prompts, or sharing flows.
 
 ## Prompt versioning
 Canonical specs for every LLM prompt live in `prompts/` at the repo root. Each `.md` file has YAML frontmatter (id, version, prior_version, runtime, model, languages, variables) and is the source of truth for the prompt body. Runtime files in `src/lib/prompts/*.ts` reference the spec; the Vapi assistant is paste-synced from `prompts/vapi-intake-assistant.md`. See `prompts/README.md` for the convention and `prompts/CHANGELOG.md` for cross-prompt release history.
