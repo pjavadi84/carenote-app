@@ -33,6 +33,24 @@ export function ClinicianPortalView({
     ? `${resident.first_name} ${resident.last_name}`
     : "Patient";
 
+  // Defensive shape normalisation: the rendered_summary JSONB stored at share-
+  // creation time reflects whatever Claude returned for that particular call.
+  // Claude is *asked* to return all fields, but in practice can omit any of
+  // them — and the share row was committed with the partial shape. Render-
+  // time crashes here surface as an opaque "Server Components render error"
+  // in production, which doesn't help the clinician. Normalise once and
+  // render conditionally below.
+  const body = typeof summary.body === "string" ? summary.body : "";
+  const keyObservations = Array.isArray(summary.key_observations)
+    ? summary.key_observations
+    : [];
+  const safetyEvents = Array.isArray(summary.safety_events)
+    ? summary.safety_events
+    : [];
+  const followUpRecommended = Array.isArray(summary.follow_up_recommended)
+    ? summary.follow_up_recommended
+    : [];
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-muted/30">
@@ -95,13 +113,17 @@ export function ClinicianPortalView({
             Summary
           </h2>
           <div className="space-y-4 text-sm leading-relaxed">
-            {summary.body.split(/\n{2,}/).map((p, i) => (
-              <p key={i}>{p}</p>
-            ))}
+            {body ? (
+              body.split(/\n{2,}/).map((p, i) => <p key={i}>{p}</p>)
+            ) : (
+              <p className="italic text-muted-foreground">
+                No narrative summary was produced for this share.
+              </p>
+            )}
           </div>
         </section>
 
-        {summary.key_observations.length > 0 && (
+        {keyObservations.length > 0 && (
           <>
             <Separator />
             <section>
@@ -109,7 +131,7 @@ export function ClinicianPortalView({
                 Key observations
               </h2>
               <ul className="text-sm space-y-1 list-disc ml-5">
-                {summary.key_observations.map((o, i) => (
+                {keyObservations.map((o, i) => (
                   <li key={i}>{o}</li>
                 ))}
               </ul>
@@ -129,7 +151,7 @@ export function ClinicianPortalView({
           </>
         )}
 
-        {summary.safety_events.length > 0 && (
+        {safetyEvents.length > 0 && (
           <>
             <Separator />
             <section>
@@ -137,7 +159,7 @@ export function ClinicianPortalView({
                 Safety events
               </h2>
               <ul className="text-sm space-y-1 list-disc ml-5">
-                {summary.safety_events.map((e, i) => (
+                {safetyEvents.map((e, i) => (
                   <li key={i}>{e}</li>
                 ))}
               </ul>
@@ -157,7 +179,7 @@ export function ClinicianPortalView({
           </>
         )}
 
-        {summary.follow_up_recommended.length > 0 && (
+        {followUpRecommended.length > 0 && (
           <>
             <Separator />
             <section>
@@ -165,7 +187,7 @@ export function ClinicianPortalView({
                 Follow-up flagged by care team
               </h2>
               <ul className="text-sm space-y-1 list-disc ml-5">
-                {summary.follow_up_recommended.map((f, i) => (
+                {followUpRecommended.map((f, i) => (
                   <li key={i}>{f}</li>
                 ))}
               </ul>
