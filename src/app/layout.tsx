@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
+import { OrganizationJsonLd } from "@/components/seo/organization-jsonld";
 import "./globals.css";
 
 const inter = Inter({
@@ -39,10 +40,16 @@ export const metadata: Metadata = {
       "max-video-preview": -1,
     },
   },
-  icons: {
-    icon: "/favicon.ico",
-    apple: "/apple-touch-icon.png",
+  // Search Console verification token. Set in Vercel as
+  // NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION before adding the property in
+  // GSC; until then this is undefined and the meta tag is omitted.
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
   },
+  // OG and apple-touch-icon images are emitted by the file conventions
+  // at src/app/opengraph-image.tsx and src/app/apple-icon.tsx.
+  // src/app/favicon.ico covers the standard favicon. No manual `icons`
+  // or `openGraph.images` entries needed — Next would duplicate tags.
   openGraph: {
     type: "website",
     siteName: SITE_NAME,
@@ -50,20 +57,11 @@ export const metadata: Metadata = {
     description: SITE_DESCRIPTION,
     url: SITE_URL,
     locale: "en_US",
-    images: [
-      {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: `${SITE_NAME} — voice-first documentation for care homes`,
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: SITE_NAME,
     description: SITE_DESCRIPTION,
-    images: ["/og-image.png"],
   },
 };
 
@@ -89,6 +87,7 @@ export default async function RootLayout({
   return (
     <html lang={locale} className={`${inter.variable} h-full`} suppressHydrationWarning>
       <body className="h-full bg-background text-foreground antialiased">
+        <OrganizationJsonLd />
         <NextIntlClientProvider locale={locale} messages={messages}>
           <ThemeProvider>
             {children}
