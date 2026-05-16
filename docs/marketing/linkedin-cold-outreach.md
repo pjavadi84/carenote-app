@@ -1,5 +1,7 @@
 # LinkedIn cold outreach — direct messages
 
+> **Drafting in batch?** Use the [`/lead-batch`](../../.claude/skills/lead-batch/SKILL.md) Claude Code skill — paste 5–15 leads, get back personalised drafts in seconds, review and send manually. Output lands in [`outreach-batches/`](./outreach-batches/) (gitignored). The skill uses the templates below — this doc remains the canonical source.
+
 **Goal:** 10 personalised messages per day, ~50/week. Expect 15–25% reply rate. Of replies, ~30% convert to a call. Of calls, ~30% convert to pilot. Math: 50 messages → 10 replies → 3 calls → 1 pilot signup.
 
 **Rules:**
