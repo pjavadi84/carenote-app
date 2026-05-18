@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { createClient } from "@/lib/supabase/client";
 
 interface Utterance {
   speaker: number;
@@ -37,7 +38,52 @@ interface DiligenceResult {
   summary: Summary;
 }
 
-const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
+interface UploadUrlResponse {
+  path: string;
+  token: string;
+  signedUrl: string;
+  maxBytes: number;
+}
+
+const DILIGENCE_BUCKET = "diligence-uploads";
+const DEFAULT_MAX_BYTES = 100 * 1024 * 1024;
+
+const ACCEPTED_MIME_TYPES = [
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/mp4",
+  "audio/m4a",
+  "audio/x-m4a",
+  "audio/wav",
+  "audio/x-wav",
+  "audio/webm",
+  "audio/ogg",
+  "audio/flac",
+  "audio/aac",
+];
+
+const EXTENSION_TO_MIME: Record<string, string> = {
+  mp3: "audio/mpeg",
+  m4a: "audio/mp4",
+  mp4: "audio/mp4",
+  wav: "audio/wav",
+  webm: "audio/webm",
+  ogg: "audio/ogg",
+  oga: "audio/ogg",
+  flac: "audio/flac",
+  aac: "audio/aac",
+};
+
+// Browsers sometimes hand us `File.type === ""` for `.m4a`/`.wav` recorded
+// outside the standard MediaRecorder paths (Safari is the usual offender).
+// Fall back to extension-based detection so the user can still upload.
+function resolveMimeType(file: File): string {
+  if (file.type && ACCEPTED_MIME_TYPES.includes(file.type)) return file.type;
+  const dot = file.name.lastIndexOf(".");
+  if (dot < 0) return file.type || "";
+  const ext = file.name.slice(dot + 1).toLowerCase();
+  return EXTENSION_TO_MIME[ext] ?? file.type ?? "";
+}
 
 function formatDuration(seconds: number | null): string {
   if (!seconds && seconds !== 0) return "—";
@@ -73,57 +119,117 @@ function ListSection({ title, items }: { title: string; items: string[] }) {
   );
 }
 
+type Phase = "idle" | "requesting-url" | "uploading" | "processing";
+
 export function DiligenceUploader() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [processing, setProcessing] = useState(false);
+  const [phase, setPhase] = useState<Phase>("idle");
   const [result, setResult] = useState<DiligenceResult | null>(null);
+
+  const processing = phase !== "idle";
 
   function reset() {
     setFile(null);
     setResult(null);
+    setPhase("idle");
     if (inputRef.current) inputRef.current.value = "";
   }
 
   async function handleSubmit() {
     if (!file) return;
-    if (file.size > MAX_AUDIO_BYTES) {
+
+    const mime = resolveMimeType(file);
+    if (!ACCEPTED_MIME_TYPES.includes(mime)) {
       toast.error(
-        `File too large. Max ${Math.floor(MAX_AUDIO_BYTES / 1024 / 1024)}MB.`
+        `Unsupported audio type${file.type ? ` (${file.type})` : ""}. Try MP3, M4A, WAV, WEBM, OGG, or FLAC.`
       );
       return;
     }
 
-    setProcessing(true);
     setResult(null);
-    try {
-      const formData = new FormData();
-      formData.append("audio", file);
+    setPhase("requesting-url");
 
-      const response = await fetch("/api/diligence/process", {
+    try {
+      const urlResponse = await fetch("/api/diligence/upload-url", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contentType: mime,
+          contentLength: file.size,
+        }),
       });
 
-      if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as {
+      if (!urlResponse.ok) {
+        const body = (await urlResponse.json().catch(() => ({}))) as {
           error?: string;
-          details?: string;
         };
-        toast.error(body.error ?? "Diligence processing failed");
+        toast.error(body.error ?? "Failed to start upload");
+        setPhase("idle");
         return;
       }
 
-      const data = (await response.json()) as DiligenceResult;
+      const upload = (await urlResponse.json()) as UploadUrlResponse;
+      const maxBytes = upload.maxBytes ?? DEFAULT_MAX_BYTES;
+      if (file.size > maxBytes) {
+        toast.error(`File too large. Max ${Math.floor(maxBytes / 1024 / 1024)}MB.`);
+        setPhase("idle");
+        return;
+      }
+
+      setPhase("uploading");
+      const supabase = createClient();
+      const { error: uploadError } = await supabase.storage
+        .from(DILIGENCE_BUCKET)
+        .uploadToSignedUrl(upload.path, upload.token, file, {
+          contentType: mime,
+          upsert: false,
+        });
+      if (uploadError) {
+        toast.error(`Upload failed: ${uploadError.message}`);
+        setPhase("idle");
+        return;
+      }
+
+      setPhase("processing");
+      const processResponse = await fetch("/api/diligence/process", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storagePath: upload.path }),
+      });
+
+      if (!processResponse.ok) {
+        const body = (await processResponse.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        toast.error(body.error ?? "Diligence processing failed");
+        setPhase("idle");
+        return;
+      }
+
+      const data = (await processResponse.json()) as DiligenceResult;
       setResult(data);
       toast.success("Recording processed");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      toast.error(`Diligence processing failed: ${message}`);
+      toast.error(`Diligence failed: ${message}`);
     } finally {
-      setProcessing(false);
+      setPhase("idle");
     }
   }
+
+  const buttonLabel = (() => {
+    switch (phase) {
+      case "requesting-url":
+        return "Preparing upload…";
+      case "uploading":
+        return "Uploading…";
+      case "processing":
+        return "Transcribing & summarising…";
+      default:
+        return "Transcribe & summarise";
+    }
+  })();
 
   return (
     <div className="space-y-6">
@@ -137,8 +243,9 @@ export function DiligenceUploader() {
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
             Upload an audio recording of a conversation. Transcription
-            supports English and Farsi code-switching. Audio is processed
-            in-memory and never stored.
+            supports English and Farsi code-switching. Audio is held in
+            temporary storage only long enough for Deepgram to fetch it,
+            then deleted.
           </p>
           <input
             ref={inputRef}
@@ -165,12 +272,12 @@ export function DiligenceUploader() {
               {processing ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Processing…
+                  {buttonLabel}
                 </>
               ) : (
                 <>
                   <Upload className="h-4 w-4" />
-                  Transcribe & summarise
+                  {buttonLabel}
                 </>
               )}
             </Button>

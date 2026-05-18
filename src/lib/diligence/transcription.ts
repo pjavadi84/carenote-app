@@ -5,8 +5,12 @@
 // directly and also gives us speaker diarization + utterance segments,
 // which the diligence UI surfaces alongside the structured summary.
 //
-// Audio is streamed to Deepgram and never persisted server-side, matching
-// the CLAUDE.md rule that audio is not stored.
+// We never proxy the audio bytes through our serverless function — Vercel
+// caps request bodies at ~4.5 MB and diligence recordings are routinely
+// 10-100x that. Instead the browser uploads the file directly to Supabase
+// Storage, and we hand Deepgram a short-lived signed read URL. Audio is
+// deleted from Storage as soon as transcription returns, matching the
+// CLAUDE.md rule that audio is not persisted.
 
 const DEEPGRAM_ENDPOINT = "https://api.deepgram.com/v1/listen";
 
@@ -51,9 +55,8 @@ interface DeepgramResponse {
   };
 }
 
-export async function transcribeDiligenceAudio(
-  audio: Blob,
-  contentType: string
+export async function transcribeDiligenceAudioFromUrl(
+  audioUrl: string
 ): Promise<DiligenceTranscription> {
   const apiKey = process.env.DEEPGRAM_API_KEY;
   if (!apiKey) {
@@ -73,9 +76,9 @@ export async function transcribeDiligenceAudio(
     method: "POST",
     headers: {
       Authorization: `Token ${apiKey}`,
-      "Content-Type": contentType || "application/octet-stream",
+      "Content-Type": "application/json",
     },
-    body: audio,
+    body: JSON.stringify({ url: audioUrl }),
   });
 
   if (!response.ok) {
