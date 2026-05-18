@@ -1,0 +1,49 @@
+# Local dev: bring up Lobster Trap as a sidecar alongside `pnpm dev`.
+# Point ANTHROPIC_BASE_URL=http://localhost:8080 at it (see
+# docs/engineering/lobster-trap.md for the full wiring).
+#
+# `docker compose up` from this directory is all you need.
+
+services:
+  lobster-trap-anthropic:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kinroster-lobster-trap-anthropic
+    ports:
+      - "8080:8080"
+    command:
+      - "serve"
+      - "--policy"
+      - "/etc/lobstertrap/policy.yaml"
+      - "--listen"
+      - ":8080"
+      - "--backend"
+      - "https://api.anthropic.com"
+      - "--audit-log"
+      - "/dev/stdout"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  lobster-trap-openai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kinroster-lobster-trap-openai
+    ports:
+      - "8081:8080"
+    command:
+      - "serve"
+      - "--policy"
+      - "/etc/lobstertrap/policy.yaml"
+      - "--listen"
+      - ":8080"
+      - "--backend"
+      - "https://api.openai.com"
+      - "--audit-log"
+      - "/dev/stdout"
+    restart: unless-stopped
