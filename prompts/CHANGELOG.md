@@ -2,6 +2,12 @@
 
 Cross-prompt release log. Per-prompt history lives in each spec file's **Version history** section.
 
+## 2026-05-18 — diligence-v1
+
+Adds the diligence audio-upload pipeline. Uploads route through Deepgram nova-3 (`language=multi`, diarized) for EN + Farsi code-switching transcripts, then through Claude Opus 4.7 for a 10-section structured summary.
+
+- `diligence-summary` (new, `2026-05-18-en-fa-v1`): summarises a recorded conversation into executive summary + participants, key topics, decisions, action items, open questions, risks, commitments, follow-ups, and notable quotes. Quotes preserved verbatim in source language; every other field rendered in English.
+
 ## 2026-05-02 — multilingual-v1
 
 First multilingual release. Adds support for caregivers in Taiwan working with Vietnamese / Indonesian / Mandarin source languages and elderly Taiwanese / Vietnamese / Indonesian residents. Surgeon-facing clinical output defaults to Traditional Chinese (zh-TW). All prompts now language-parameterized via `{{caregiver_language}}` / `{{output_language}}` variables and inject a cultural-register block (honorific preference, religion-specific phrasing rules, family-vs-clinical register).
