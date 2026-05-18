@@ -1,0 +1,147 @@
+# Kinroster x Lobster Trap policy
+#
+# Lobster Trap (https://github.com/veeainc/lobstertrap) sits inline as a
+# reverse proxy in front of every LLM call Kinroster makes — Anthropic
+# Messages API for note structuring, OpenAI Whisper for transcription,
+# and (later) Vapi for live voice calls.
+#
+# This policy is the runtime, machine-enforced version of the rules
+# already encoded in CLAUDE.md and docs/compliance/. It is intentionally
+# narrow: defence-in-depth around the existing server-side PHI
+# redaction, not a replacement for it.
+#
+# Rule priority: higher numbers fire first. Default action is ALLOW so
+# legitimate caregiver dictation always reaches Claude.
+
+version: "1.0"
+policy_name: "kinroster-hipaa-defence-in-depth"
+default_action: ALLOW
+
+ingress_rules:
+  # ---------------------------------------------------------------
+  # 1. Prompt injection / jailbreak guard
+  # ---------------------------------------------------------------
+  # Care-home staff dictate verbatim from charts, sticky notes, family
+  # letters. A hostile family member or disgruntled staffer can plant
+  # adversarial text that a caregiver then reads aloud. Block before it
+  # reaches Claude. Lobster Trap's built-in detector covers the common
+  # patterns; we also add an explicit rule on top for visibility in the
+  # audit feed.
+  - name: block_prompt_injection_builtin
+    priority: 100
+    action: DENY
+    deny_message: "[Kinroster] Part of this note couldn't be processed (policy: prompt-injection)."
+    conditions:
+      - field: contains_injection_patterns
+        match_type: boolean
+        value: true
+
+  - name: block_explicit_jailbreak_phrases
+    priority: 99
+    action: DENY
+    deny_message: "[Kinroster] Part of this note couldn't be processed (policy: jailbreak-phrase)."
+    conditions:
+      - field: prompt
+        match_type: regex
+        value: '(?i)(ignore (all |any |previous |prior )?(instructions|prompts|rules)|disregard (the |your )?(system|previous)|from now on,? (you|the assistant))'
+
+  # ---------------------------------------------------------------
+  # 2. PHI shapes that should never appear in an LLM prompt
+  # ---------------------------------------------------------------
+  # Kinroster's server-side redactor strips obvious PHI before the
+  # prompt is built, but transcripts sometimes contain unexpected
+  # spellings. This catches what the redactor missed.
+  - name: block_ssn_pattern
+    priority: 90
+    action: DENY
+    deny_message: "[Kinroster] Detected a sensitive identifier (SSN-shaped). Note not processed."
+    conditions:
+      - field: prompt
+        match_type: regex
+        value: '\b\d{3}-\d{2}-\d{4}\b'
+
+  - name: block_credit_card_pattern
+    priority: 89
+    action: DENY
+    deny_message: "[Kinroster] Detected payment-card-shaped data. Note not processed."
+    conditions:
+      - field: prompt
+        match_type: regex
+        value: '\b(?:\d[ -]*?){13,16}\b'
+
+  # ---------------------------------------------------------------
+  # 3. Credential exposure
+  # ---------------------------------------------------------------
+  # Caregivers occasionally read out portal codes / API keys. Lobster
+  # Trap's built-in credential detector catches API keys, bearer
+  # tokens, and common secret formats.
+  - name: block_credential_leak
+    priority: 80
+    action: DENY
+    deny_message: "[Kinroster] Detected a credential-shaped value. Note not processed."
+    conditions:
+      - field: contains_credentials
+        match_type: boolean
+        value: true
+
+  # ---------------------------------------------------------------
+  # 4. Clinical advice elicitation (FLAG, do not block)
+  # ---------------------------------------------------------------
+  # Kinroster's product rule (CLAUDE.md): "Claude is a scribe, never a
+  # clinician." We FLAG when a prompt explicitly asks Claude to
+  # diagnose or prescribe — the prompt template already discourages
+  # this, but flagging gives compliance visibility into how often it
+  # happens in the wild.
+  - name: flag_clinical_advice_request
+    priority: 50
+    action: LOG
+    conditions:
+      - field: prompt
+        match_type: regex
+        value: '(?i)\b(diagnose|diagnosis of|should (we|i) prescribe|recommended? treatment|what medication|is this (a )?(stroke|heart attack|infection))\b'
+
+  # ---------------------------------------------------------------
+  # 5. Catch-all logging
+  # ---------------------------------------------------------------
+  # Every allowed prompt is logged at LOG action so the audit ledger
+  # has one row per Kinroster LLM call. Cost: small audit-log volume.
+  # Benefit: complete forensic trail across the integration.
+  - name: log_all_allowed
+    priority: 1
+    action: LOG
+    conditions:
+      - field: prompt
+        match_type: regex
+        value: '.+'
+
+# ---------------------------------------------------------------
+# Egress rules: response-side enforcement
+# ---------------------------------------------------------------
+# We can't redefine egress_rules in this version of Lobster Trap as
+# cleanly as ingress, but the patterns below should be reviewed against
+# the latest README before deploy. The intent is:
+#   - Flag any model response containing diagnostic verbs.
+#   - Block responses that quote more than N PHI-shaped tokens (signal
+#     of accidental cross-resident leakage).
+# Tracked in TODO inside docs/engineering/lobster-trap.md.
+
+# ---------------------------------------------------------------
+# Rate limits
+# ---------------------------------------------------------------
+# Conservative defaults; the production Anthropic quota is the real
+# ceiling. These prevent runaway loops if a caller bug enters a retry
+# storm.
+rate_limits:
+  requests_per_minute: 240
+  requests_per_hour: 6000
+  burst_threshold: 60
+
+# ---------------------------------------------------------------
+# Network egress (Lobster Trap acts as a firewall in addition to a
+# DPI). Restrict outbound to known LLM providers only.
+# ---------------------------------------------------------------
+network:
+  egress_policy: allowlist
+  allowed_domains:
+    - "api.anthropic.com"
+    - "api.openai.com"

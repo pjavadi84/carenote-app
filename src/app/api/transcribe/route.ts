@@ -59,8 +59,12 @@ export async function POST(request: NextRequest) {
       whisperFormData.append("language", languageHint);
     }
 
+    // WHISPER_BASE_URL routes the call through the Lobster Trap proxy
+    // (see infra/lobster-trap/) when set. Defaults to OpenAI directly.
+    const whisperBase =
+      process.env.WHISPER_BASE_URL ?? "https://api.openai.com";
     const response = await fetch(
-      "https://api.openai.com/v1/audio/transcriptions",
+      `${whisperBase}/v1/audio/transcriptions`,
       {
         method: "POST",
         headers: {

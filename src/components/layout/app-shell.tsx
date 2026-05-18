@@ -14,6 +14,7 @@ import {
   Mic,
   Stethoscope,
   ShieldAlert,
+  ShieldCheck,
   ScrollText,
   ClipboardList,
   FileArchive,
@@ -139,6 +140,13 @@ export function AppShell({
                     >
                       <ScrollText className="h-4 w-4" />
                       Audit Log
+                    </Link>
+                    <Link
+                      href="/security"
+                      className="flex items-center gap-3 rounded-md px-3 py-2 text-sm hover:bg-accent"
+                    >
+                      <ShieldCheck className="h-4 w-4" />
+                      Security
                     </Link>
                     <Link
                       href="/data-requests"

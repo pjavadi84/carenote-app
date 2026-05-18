@@ -1,7 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 
+// When ANTHROPIC_BASE_URL is set, the SDK routes every request through
+// that URL instead of api.anthropic.com. Used to slot Lobster Trap (see
+// infra/lobster-trap/) inline between Kinroster and Claude for policy
+// enforcement and audit. Unset = direct-to-Anthropic, original behaviour.
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY!,
+  ...(process.env.ANTHROPIC_BASE_URL
+    ? { baseURL: process.env.ANTHROPIC_BASE_URL }
+    : {}),
 });
 
 const RETRY_DELAY_MS = 2000;
